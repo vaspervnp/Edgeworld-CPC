@@ -46,6 +46,7 @@ $(DSK): $(BUILD)/shield.bin $(BUILD)/sprites.inc tools/mkdisc.py
 test: $(DSK)
 	$(PYTHON) tests/test_screen.py
 	$(PYTHON) tests/test_player.py
+	$(PYTHON) tests/test_generators.py
 
 clean:
 	rm -rf $(BUILD)

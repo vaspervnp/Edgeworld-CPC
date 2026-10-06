@@ -19,23 +19,26 @@ is in [plan.md](plan.md).
 | 2 | HUD split and rasters: fixed HUD via CRTC split, raster sky, separate HUD palette | **Done** |
 | 3 | Sprite engine: masked, pre-shifted sprites, tile restore, foreground layer; Runner + 8 enemies at 25 fps | **Done** |
 | 4 | Player: riding, jumping, shooting, dismount/mount, whistle; compiled sprites in extra RAM | **Done** |
-| 5 | Generators and radar | Next |
-| 6 | Enemies | |
+| 5 | Generators and radar: drain, unstable/drained states, breaches, recharge minigame | **Done** |
+| 6 | Enemies | Next |
 | 7 | First planet complete | |
 | 8 | Banking and loading (sprites already load into extra RAM) | |
 | 9 | Planets 2-4 | |
 | 10 | Release | |
 
 The current build is playable as a toy: ride the Runner around a
-1024-pixel test planet (starfield, mountains, ground, four generators,
-foreground crystal spires, column markers), jump, shoot, get off, walk,
-whistle the Runner over and climb back on, under a fixed HUD (radar with a
-live view marker, spare Runners, timer and energy placeholders). Eight
-drifters swoop around the view as the enemy load test: the most sprites
-the game is meant to show at once. They do nothing yet. Everything holds
-25 fps with every frame inside budget.
+1024-pixel test planet, jump, shoot, get off, walk, whistle the Runner over
+and climb back on, and keep its four shield generators alive. Each drains at
+its own rate; the radar shows them green (stable), flashing (unstable) or
+red (drained, letting a breach in), and the core of the one in view does the
+same. To recharge one, get off, stand at it and hold down: it charges
+slowly, and fire pressed while its core flashes white pumps in a big boost,
+but pressed at the wrong time stalls it for a second. The SHIELD gauge in
+the HUD shows the charge of the generator in view. Eight drifters swoop
+around the view as the enemy load test; they do nothing yet. Everything
+holds 25 fps with every frame inside budget.
 
-![Milestone 4 in the emulator](docs/milestone4.png)
+![Milestone 5 in the emulator](docs/milestone5.png)
 
 ## Building
 
@@ -74,6 +77,7 @@ Controls (joystick, or cursor keys with space to fire):
 | Fire | Shoot forward | Shoot forward |
 | Fire + Up | Shoot diagonally up | Shoot straight up, or diagonally with Left / Right |
 | Fire + Down | Get off | Get on (standing at the Runner) |
+| Down | | Hold at a generator to recharge it; Fire while its core flashes white to pump |
 | W | | Whistle: the Runner runs over, or a spare comes in if it is gone |
 
 ## Testing
@@ -107,13 +111,16 @@ It also reports the least spare time seen in a 25 fps frame.
 (forward, diagonal, up), getting off, walking to the edge of the view,
 whistling, getting back on and calling spare Runners, checking the game's
 state after each action and every frame's picture as above.
+`tests/test_generators.py` does the same for the generators: drain rates,
+unstable flashing on the radar and the core, breaches, and the recharge
+minigame (slow charge, a pump in time, a stall, letting go).
 
 Other tools:
 
 - `tests/profile.py` samples the program counter and shows where the time
   goes per routine; `tests/profile.py --work` measures every frame's work
   against the 39,936 us of two frames, riding at full speed and firing
-  (currently median 32K, worst 36.6K).
+  (currently median 33K, worst 37.6K).
 - `tests/calibrate_rasters.py` shows where raster colour changes land in the
   scanline; it was used to tune the delays in `src/system.asm`.
 
@@ -182,6 +189,14 @@ through their masks, so sprites pass behind them, as in Pete Green's 1988
 routine. While mounted, the Runner and rider are one combined sprite;
 frames facing left are mirrored copies.
 
+**Generators.** Generators are 64 columns apart and the view is 40, so only
+one is ever on screen: its core is drawn in pen 2, which nothing else uses,
+and the game sets that palette entry each frame to show the generator's
+state, or the pump pulse while it is being recharged. The radar dots and
+the SHIELD gauge are redrawn in the HUD only when they change. Their
+positions, drain rates and starting charges are planet data
+(`src/planet.asm`).
+
 **Player.** Positions are in eighths of a pixel, so speeds can be
 fractional: the Runner accelerates to 4 pixels a frame (the scroll speed)
 and the camera moves a column a frame to keep it centred; on foot the
@@ -190,8 +205,9 @@ camera stops. Bolts are sprites too (up to 4).
 **Frame budget** (riding at full speed and firing, NOPs of 39,936): restore
 about 10K, two new scroll columns about 5K, sprite drawing about 4K
 (compiled; more when sprites are clipped), interrupts about 2.5K,
-foreground up to 3.5K when sprites pass behind it, game logic about 2K.
-Median 32K, worst 36.6K: the next optimisation target is the restore.
+foreground up to 3.5K when sprites pass behind it, game logic about 3K.
+Median 33K, worst 37.6K: the restore is the next optimisation target, before
+the enemies of milestone 6 add their logic.
 
 **Tiles.** A tile is one CRTC character: 4 Mode 0 pixels by 8 lines, 16 bytes.
 The map is stored column-major, one byte per cell, with a table of column
@@ -209,7 +225,9 @@ palette, plus the foreground overlays from a second mask image;
 | `src/scroll.asm` | Column drawing, buffer catch-up and flips |
 | `src/system.asm` | Interrupt handler: CRTC split, rasters, flips; keyboard and joystick |
 | `src/sprites.asm` | Sprite engine: restore, masked drawing, foreground |
-| `src/player.asm` | The player: riding, on foot, bolts, whistle, camera; the sprite list |
+| `src/player.asm` | The player: riding, on foot, recharging, bolts, whistle, camera; the sprite list |
+| `src/generators.asm` | Shield generators: drain, states, breaches, core colour, radar dots, SHIELD gauge |
+| `src/planet.asm` | Planet data: generator positions, drain rates, starting charges |
 | `src/demo.asm` | The enemy load test: 8 drifters |
 | `src/hud.asm` | HUD setup and radar marker |
 | `src/macros.asm` | Shared macros |
@@ -226,6 +244,7 @@ palette, plus the foreground overlays from a second mask image;
 | `tests/test_screen.py` | Headless frame-by-frame screen test on CRTC types 0, 1 and 2 |
 | `tests/calibrate_rasters.py` | Shows where raster changes land in the scanline |
 | `tests/test_player.py` | Headless test of every player action |
+| `tests/test_generators.py` | Headless test of the generators and the recharge minigame |
 | `tests/profile.py` | Sampling profiler and per-frame work measurement |
 | `tests/harness.py` | Boots the disc in the headless emulator |
 | `assets/` | Source art |

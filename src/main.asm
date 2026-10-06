@@ -1,6 +1,7 @@
 ; Shieldrunner for the Amstrad CPC 6128.
-; Milestone 4: the player (riding, jumping, shooting, dismounting,
-; whistling) on the scrolling planet with its fixed HUD, raster sky and
+; Milestone 5: the player (riding, jumping, shooting, dismounting,
+; whistling, recharging) and the shield generators (drain, radar, gauge,
+; breaches) on the scrolling planet with its fixed HUD, raster sky and
 ; sprite engine, with 8 drifters as the enemy load test.
 ;
 ; Controls (joystick or cursor keys, space = fire, W = whistle): see
@@ -35,6 +36,7 @@ start:
     call hud_init
     call player_init
     call hud_spares
+    call gen_init
     ld hl,0
     call scroll_init
     call hud_update
@@ -54,6 +56,7 @@ main_loop:
     ld hl,(scroll_pos)
     add hl,de
     ld (scroll_pos),hl
+    call gen_update
     call list_begin
     call demo_update
     call player_sprites
@@ -71,6 +74,8 @@ main_loop:
     include "hud.asm"
     include "sprites.asm"
     include "player.asm"
+    include "planet.asm"
+    include "generators.asm"
     include "demo.asm"
 
     align 256

@@ -6,7 +6,9 @@ a mountain range, ground, four shield generators and column markers on the
 bottom row (a block at column 0, a tick every 8 columns) so scrolling and
 wrap-around can be checked by eye.
 
-The sky is a single pen (1); raster interrupts recolour it in bands.
+The sky is a single pen (1); raster interrupts recolour it in bands. The
+generators' cores are pen 2 and nothing else is: the game recolours it to
+show the state of the generator in view (only one fits on screen).
 Crystal spires stand in the foreground: the second image marks their
 pixels (1 = foreground), and sprites pass behind them.
 
@@ -22,10 +24,10 @@ from cpcpal import COLOURS
 W, H = 1024, 136
 COLS = W // 4
 
-PENS = ["black", "black", "sky_blue", "mauve", "bright_white", "red", "orange",
+PENS = ["black", "black", "bright_green", "mauve", "bright_white", "red", "orange",
         "bright_yellow", "yellow", "white", "pastel_blue", "green",
         "bright_green", "bright_red", "cyan", "magenta"]
-BLACK, SKY, STAR2, MAUVE, WHITE, RED, ORANGE, BYELLOW, YELLOW, GREY, \
+BLACK, SKY, CORE, MAUVE, WHITE, RED, ORANGE, BYELLOW, YELLOW, GREY, \
     PBLUE, GREEN, BGREEN, BRED, CYAN, MAGENTA = range(16)
 
 GROUND = 96               # first ground line (tile row 12)
@@ -66,7 +68,7 @@ def main(out, fg_out):
         for row in range(9):
             if rnd.random() < 0.18 - row * 0.015:
                 sx, sy = rnd.choice(spots)
-                px[c * 4 + sx, row * 8 + sy] = WHITE if rnd.random() < 0.7 else STAR2
+                px[c * 4 + sx, row * 8 + sy] = WHITE if rnd.random() < 0.7 else PBLUE
 
     # Mountains: slopes of 2 lines per pixel, breakpoints on tile corners.
     h = mountain_heights()
@@ -98,7 +100,7 @@ def main(out, fg_out):
         rect(x, 80, x + 12, GROUND, GREY)             # platform rows 10-11
         rect(x, 80, x + 12, 82, PBLUE)
         rect(x + 4, 48, x + 8, 80, GREY)              # shaft rows 6-9
-        rect(x + 5, 52, x + 7, 76, BGREEN)
+        rect(x + 5, 52, x + 7, 76, CORE)
         rect(x, 40, x + 12, 48, GREEN)                # cap row 5
         rect(x + 2, 40, x + 10, 42, BGREEN)
         rect(x + 5, 40, x + 7, 41, WHITE)

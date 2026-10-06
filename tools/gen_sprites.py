@@ -21,7 +21,7 @@ from gen_testplanet import PENS
 from cpcpal import COLOURS
 
 # ASCII pens: . transparent, then the playfield pens by letter.
-KEY = {".": 0, "s": 2, "u": 3, "w": 4, "R": 5, "o": 6, "Y": 7, "y": 8, "e": 9,
+KEY = {".": 0, "s": 14, "u": 3, "w": 4, "R": 5, "o": 6, "Y": 7, "y": 8, "e": 9,
        "p": 10, "g": 11, "G": 12, "r": 13, "c": 14, "m": 15}
 
 RUNNER_BODY = [

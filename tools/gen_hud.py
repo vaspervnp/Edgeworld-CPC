@@ -22,6 +22,7 @@ BLACK, RADAR_BG, GREY, PBLUE, WHITE, BGREEN, BYELLOW, BRED, ORANGE, SKY, GREEN =
 RADAR_X0, RADAR_X1 = 16, 144      # 128 pixels for 256 map columns
 RADAR_Y0, RADAR_Y1 = TOP + 8, TOP + 20
 GENERATOR_COLS = (32, 96, 160, 224)
+GAUGE_X0, GAUGE_X1 = 104, 152     # 24 bytes
 
 FONT = {
     "0": ["111", "101", "101", "101", "111"], "1": ["010", "110", "010", "010", "111"],
@@ -78,7 +79,9 @@ def main(out):
     rect(102, TOP + 27, 152, TOP + 32, GREEN)
     rect(102, TOP + 27, 152, TOP + 28, BGREEN)
     text(8, TOP + 39, "RUNNERS", BYELLOW)    # spare Runner icons follow (src/player.asm)
-    text(108, TOP + 39, "SHIELDRUNNER", PBLUE)
+    # shield gauge of the generator in view (drawn by src/generators.asm)
+    text(76, TOP + 39, "SHIELD", BYELLOW)
+    rect(GAUGE_X0, TOP + 39, GAUGE_X1, TOP + 44, RADAR_BG)
 
     rect(0, TOP + 48, W, TOP + 49, PBLUE)
     rect(0, TOP + 49, W, TOP + 50, GREY)

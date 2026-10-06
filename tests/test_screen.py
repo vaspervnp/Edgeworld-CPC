@@ -10,8 +10,10 @@ that the whole 200-line picture is exactly what it should be:
   to the view) and the foreground over them, in the playfield palette, with
   the sky pen in its raster colour for each band (so a raster change that
   lands inside the picture fails the test);
+  The generator core pen takes the colour the game showed that frame;
 - lines 136-199: the HUD in its own palette, with the radar's view marker
-  where the scroll position says and the spare Runner icons;
+  where the scroll position says, the spare Runner icons, the generators'
+  radar dots and the SHIELD gauge as the game's state says;
 - the position advances one column every 2 frames (25 fps) with no late
   flips, the frame's work fits the budget, and the frame stays 312 lines;
 - the camera follows the Runner: standing still, riding right (once up to
@@ -44,6 +46,11 @@ RADAR_X0, RADAR_X1 = 16, 144
 VIEW_CENTRE = 20
 SPARES_LINES = range(47, 52)        # HUD lines with the spare Runner icons
 SPARES_X, SPARES_STEP, MAX_SPARES = 40, 6, 5
+CORE_PEN = 2
+DOT_LINES = range(18, 22)           # radar dots of the generators
+GAUGE_LINES, GAUGE_X, GAUGE_BYTES = range(47, 52), 104, 24
+NUM_GENS, GEN_ENTRY = 4, 5
+HUD_PEN_OF = {0xF0: 5, 0x3C: 6, 0xFC: 7, 0xC0: 1}  # HUD bytes the game writes
 
 
 def indexed_rows(path):
@@ -73,10 +80,16 @@ class Expected:
         self.radar_bg = hud_pal[1]
         self.icon_full = hud_pal[5]
         self.icon_empty = hud_pal[2]
+        self.hud_pal = hud_pal
+        table = game.bytes("GEN_TABLE", NUM_GENS * GEN_ENTRY)
+        self.gen_cols = [table[i * GEN_ENTRY] for i in range(NUM_GENS)]
+        self.core = self.pf_pal[CORE_PEN]
 
     def colour(self, y, pen):
         if pen == SKY_PEN:
             return self.sky[sum(1 for first in SKY_BAND_LINES if y >= first) - 1]
+        if pen == CORE_PEN:
+            return self.core
         return self.pf_pal[pen]
 
     def playfield(self, pos, records=()):
@@ -100,8 +113,19 @@ class Expected:
                     pens[y][x] = self.planet[y][x0 + x]
         return [bytes(self.colour(y, p) for p in row) for y, row in enumerate(pens)]
 
-    def hud_line(self, y, pos, spares):
+    def hud_line(self, y, pos, spares, gens):
+        """HUD line y; gens = (radar dot bytes, gauge byte) as the game shows."""
         line = bytearray(self.hud[y])
+        dots, gauge = gens
+        if y in DOT_LINES:
+            for col, byte in zip(self.gen_cols, dots):
+                x = 2 * (8 + ((col + 1) >> 2))
+                line[x:x + 2] = bytes([self.hud_pal[HUD_PEN_OF[byte]]]) * 2
+        if y in GAUGE_LINES:
+            n = gauge & 0x3F
+            fill = self.hud_pal[5 if gauge & 0xC0 else 6]
+            line[GAUGE_X:GAUGE_X + 2 * GAUGE_BYTES] = (
+                bytes([fill]) * (2 * n) + bytes([self.hud_pal[1]]) * (2 * (GAUGE_BYTES - n)))
         if y in MARKER_LINES:
             mx = RADAR_X0 + (((pos + VIEW_CENTRE) & 255) >> 2) * 2
             line[RADAR_X0:RADAR_X1] = bytes([self.radar_bg]) * (RADAR_X1 - RADAR_X0)
@@ -117,6 +141,7 @@ class Screen:
     def __init__(self, game):
         self.game = game
         self.exp = Expected(game)
+        self.last_gens = None
         game.next_frame()
         self.top = self.find_top()
 
@@ -149,6 +174,7 @@ class Screen:
         lines = self.game.frame_lines()
         shown = [Game.pixels(lines[self.top + y]) for y in range(PLAY_H + HUD_H)]
         pos, records = self.buffers()[0]
+        self.exp.core = self.game.byte("CORE_PREV") & 31
         expected = self.exp.playfield(pos, records)
         if shown[:PLAY_H] != expected:
             bad = [y for y in range(PLAY_H) if shown[y] != expected[y]]
@@ -160,9 +186,12 @@ class Screen:
         # so it may lag the picture by a column, and the spare Runners may be
         # caught as they change.
         spares = self.game.byte("PL_SPARES")
+        gens = (tuple(self.game.bytes("DOT_SHOWN", NUM_GENS)), self.game.byte("GAUGE_SHOWN"))
+        gen_options = {gens, self.last_gens or gens}
+        self.last_gens = gens
         for y in range(HUD_H):
-            options = {self.exp.hud_line(y, p, n) for p in (pos, pos - 1, pos + 1)
-                       for n in (spares, spares + 1)}
+            options = {self.exp.hud_line(y, p, n, g) for p in (pos, pos - 1, pos + 1)
+                       for n in (spares, spares + 1) for g in gen_options}
             if shown[PLAY_H + y] not in options:
                 raise AssertionError(f"HUD line {y} is wrong at position {pos}")
         # Nothing but border colour left and right of the picture.

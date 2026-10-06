@@ -106,6 +106,12 @@ isr_table:
     dw isr_1, isr_2, isr_3, isr_4, isr_5
 
 isr_vsync:
+    ; the generator core colour the frame just ended was shown with, and the
+    ; one loaded below for the next (for tests: pen 2 changes as it likes)
+    ld a,(core_now)
+    ld (core_prev),a
+    ld a,(pf_palette+CORE_PEN)
+    ld (core_now),a
     xor a
     ld (int_idx),a
     ld hl,(frame_count)
@@ -365,6 +371,8 @@ int_idx:           db INT_UNSYNCED
 frames_since_flip: db 0
 flip_pending:      db 0
 split_on:          db 0
+core_now:          db 0
+core_prev:         db 0
 next_crtc:         dw 0     ; queued playfield address: low byte R13, high byte R12
 pf_crtc:           dw 0     ; playfield address for the next frame A
 idle_last:         dw 0     ; idle loop turns before the last flip

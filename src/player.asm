@@ -11,6 +11,12 @@
 ; from the edge of the view if there is none. On mounting, the camera pans
 ; back to centre the Runner before the controls return.
 ;
+; Recharging: on foot at a generator, holding down plugs the rider in. The
+; generator charges slowly while down is held; its core pulses, and fire
+; pressed while it flashes white pumps in a big boost, but pressed at any
+; other time stalls the charging for a second. The rider cannot move or
+; shoot meanwhile.
+;
 ; Positions are world x in eighths of a pixel (0-8191 around the planet),
 ; so speeds can be fractional. Frames facing left are the right-facing frame
 ; number + FACE_LEFT.
@@ -39,6 +45,13 @@ MAX_SPARES    equ 5
 MODE_MOUNTED  equ 0
 MODE_FOOT     equ 1
 MODE_MOUNTING equ 2
+MODE_CHARGING equ 3
+
+CHARGE_SLOW   equ 120       ; charge per frame plugged in (full in 22 s)
+PUMP          equ 6000      ; charge for a pump in time (9%)
+STALL_FRAMES  equ 25        ; a pump out of time stalls charging this long
+PULSE_FRAMES  equ 32        ; the core's pulse: a cycle of 32 frames...
+PULSE_WINDOW  equ 24        ; ...the last 8 of them are the time to pump
 
 RUNNER_RIDDEN equ 0
 RUNNER_IDLE   equ 1
@@ -97,6 +110,8 @@ player_update:
     jp z,update_foot
     cp MODE_MOUNTING
     jp z,update_mounting
+    cp MODE_CHARGING
+    jp z,update_charging
 
 update_mounted:
     ld a,(pl_jump)
@@ -206,6 +221,23 @@ update_foot:
     call try_mount
     jp z,update_shots
 .no_mount:
+    ; down alone at a generator: plug in
+    ld a,(joy_state)
+    and (1<<IN_DOWN)|(1<<IN_FIRE)
+    cp 1<<IN_DOWN
+    jr nz,.not_plugging
+    call gen_at_rider
+    jr c,.not_plugging
+    ld (pl_gen),a
+    xor a
+    ld (pl_pulse),a
+    ld (pl_stall),a
+    ld (pl_walking),a
+    ld (scroll_dir),a
+    ld a,MODE_CHARGING
+    ld (pl_mode),a
+    jp update_shots
+.not_plugging:
     ld a,(joy_new)
     bit IN_WHISTLE,a
     call nz,whistle
@@ -266,6 +298,46 @@ update_foot:
     ld b,-2
     call fire_diagonal
 .runner:
+    call update_runner
+    jp update_shots
+
+; Plugged into generator pl_gen: charge while down is held; pump with fire.
+update_charging:
+    xor a
+    ld (scroll_dir),a
+    ld a,(joy_state)
+    bit IN_DOWN,a
+    jr nz,.held
+    ld a,MODE_FOOT
+    ld (pl_mode),a
+    jr .done
+.held:
+    ld a,(pl_pulse)
+    inc a
+    and PULSE_FRAMES-1
+    ld (pl_pulse),a
+    ld a,(pl_stall)
+    or a
+    jr z,.charge
+    dec a
+    ld (pl_stall),a
+    jr .done                ; stalled: no charge, no pumping
+.charge:
+    ld de,CHARGE_SLOW
+    call charge_gen
+    ld a,(joy_new)
+    bit IN_FIRE,a
+    jr z,.done
+    ld a,(pl_pulse)
+    cp PULSE_WINDOW
+    jr c,.miss
+    ld de,PUMP
+    call charge_gen
+    jr .done
+.miss:
+    ld a,STALL_FRAMES
+    ld (pl_stall),a
+.done:
     call update_runner
     jp update_shots
 
@@ -765,6 +837,8 @@ player_sprites:
     ld a,(pl_mode)
     cp MODE_FOOT
     jr z,.on_foot
+    cp MODE_CHARGING
+    jr z,.on_foot
     ; mounted: legs move with the ride, tucked in a jump
     ld a,(pl_jump)
     or a
@@ -792,7 +866,10 @@ player_sprites:
     call list_add
     jr .shots
 .on_foot:
-    ld b,SPR_RIDER_UP_R
+    ld b,SPR_RIDER_UP_R     ; aiming up, or plugged in
+    ld a,(pl_mode)
+    cp MODE_CHARGING
+    jr z,.rider_frame
     ld a,(joy_state)
     bit IN_UP,a
     jr nz,.rider_frame
@@ -919,6 +996,9 @@ pl_walking: db 0
 pl_jump:    db 0            ; frame of the jump, 0 on the ground
 pl_cool:    db 0            ; frames until the next bolt
 pl_spares:  db 0
+pl_gen:     db 0            ; generator being recharged
+pl_pulse:   db 0            ; its pulse, 0 to PULSE_FRAMES-1
+pl_stall:   db 0            ; frames of stall left
 rn_x:       dw 0            ; the Runner when not ridden
 rn_state:   db 0
 rn_face:    db 0
