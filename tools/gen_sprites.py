@@ -8,7 +8,8 @@ face left; the enemies (drifter, tracker, crawler, rock thrower, breach
 carrier, 2 frames each), their bombs and rocks, an explosion, an energy
 cell; and the rider's bolts (horizontal, vertical, diagonal both ways).
 
-Sprites share the playfield palette; pen 0 is transparent. Writes the sheet
+Sprites share the playfield palette and use only its fixed pens (tools/pens.py);
+pen 0 is transparent. Writes the sheet
 (one frame after another, left to right) and a JSON list of frames, in the
 order the game numbers them.
 
@@ -18,12 +19,15 @@ import json
 import sys
 from PIL import Image
 
-from gen_testplanet import PENS
 from cpcpal import COLOURS
+import pens
 
-# ASCII pens: . transparent, then the playfield pens by letter.
-KEY = {".": 0, "s": 14, "u": 3, "w": 4, "R": 5, "o": 6, "Y": 7, "y": 8, "e": 9,
-       "p": 10, "g": 11, "G": 12, "r": 13, "c": 14, "m": 15}
+# ASCII pens: . transparent, then the fixed playfield pens (tools/pens.py)
+# by letter; some letters share a pen.
+KEY = {".": 0, "w": pens.WHITE, "Y": pens.YELLOW, "y": pens.ORANGE, "o": pens.ORANGE,
+       "R": pens.RED, "r": pens.RED, "e": pens.GREY, "G": pens.GREEN, "g": pens.DGREEN,
+       "m": pens.MAGENTA, "u": pens.MAGENTA, "p": pens.PBLUE, "s": pens.PBLUE,
+       "c": pens.PBLUE}
 
 RUNNER_BODY = [
     "............GG..",
@@ -262,7 +266,7 @@ def main(sheet_path, json_path):
     height = max(len(f) for _, f in frames)
     img = Image.new("P", (width, height), 0)
     pal = []
-    for name in PENS:
+    for name in pens.palette(["black"] * 4):
         pal += COLOURS[name][1]
     img.putpalette(pal + [0] * (768 - len(pal)))
     px = img.load()

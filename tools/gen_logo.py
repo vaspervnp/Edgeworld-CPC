@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate the title logo: SHIELDRUNNER in big letters, a shadow, and a
-line of small text under it, in the playfield palette (tools/gen_testplanet.py);
+line of small text under it, in the fixed pens of the playfield (tools/pens.py);
 pen 0 is transparent.
 
 Writes the image, and the raw Mode 0 bytes (LOGO_W bytes a line, LOGO_H lines)
@@ -13,7 +13,8 @@ from PIL import Image
 
 from cpcpal import COLOURS, mode0_byte
 import font
-from gen_testplanet import PENS, WHITE, BYELLOW, ORANGE, BRED, MAUVE, PBLUE
+import pens
+from pens import WHITE, YELLOW as BYELLOW, ORANGE, RED as BRED, MAGENTA as MAUVE, PBLUE
 
 W, H = 144, 32
 CELL_W, CELL_H = 2, 3
@@ -37,7 +38,7 @@ GRADIENT = [WHITE] * 3 + [BYELLOW] * 6 + [ORANGE] * 6 + [BRED] * 6
 def main(out_png, out_bin):
     img = Image.new("P", (W, H), 0)
     pal = []
-    for name in PENS:
+    for name in pens.palette(["black"] * 4):
         pal += COLOURS[name][1]
     img.putpalette(pal + [0] * (768 - len(pal)))
     px = img.load()

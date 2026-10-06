@@ -4,7 +4,7 @@
 ;   drifter   floats towards the player, explodes against them
 ;   tracker   flies high, keeps over the player, drops bombs
 ;   crawler   walks the ground towards the player (jump it)
-;   thrower   stands on the ground, lobs rocks that land at the player
+;   thrower   walks in to a stand in view, lobs rocks that land at the player
 ;   carrier   the breach carrier: comes when two generators are drained,
 ;             takes 12 bolts, bombs from above
 ;
@@ -60,6 +60,7 @@ TRACK_SWING   equ 28        ; trackers sweep this far either side of it
 BOMB_GAP      equ 40        ; frames between a tracker's bombs...
 TRACK_HOVER   equ 20        ; ...the first of them hanging still
 ; (defined up here: rasm loses the sign of -NAME when NAME comes later)
+THROW_STAND   equ 56        ; throwers walk in to this far from the player
 THROW_RANGE   equ 80        ; a thrower lobs at a player this near (higher
                             ; lobs would leave the top of the screen)
 
@@ -436,6 +437,22 @@ update_crawler:
 
 
 update_thrower:
+    ; walk in (every other frame) to THROW_STAND pixels from the player, on
+    ; its side: in the view, where it can be seen and shot
+    ld a,(en_tick)
+    rra
+    jr c,.lob
+    ld a,(iy+1)
+    srl a
+    call dx_to_player
+    ld b,THROW_STAND
+    bit 7,h
+    jr nz,.side             ; right of the player
+    ld b,-THROW_STAND
+.side:
+    ld c,1
+    call step_x_by
+.lob:
     ld a,(ix+5)
     or a
     jr z,.ready

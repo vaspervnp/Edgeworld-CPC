@@ -17,7 +17,8 @@ So holding the shield takes recharging, and recharging is enough when
 nothing else interferes; how the real thing (enemies, Runner losses) goes
 is reported for tuning.
 
-Usage: playtest.py [--seed=N] [bot ...]     (default: all; N seeds the enemies)
+Usage: playtest.py [--seed=N] [--planet=N] [bot ...]
+  (default: all bots, planet 1; the seed changes the enemies)
 """
 import sys
 
@@ -37,9 +38,12 @@ END_NAMES = {1: "energy gone", 2: "shield down", 3: "planet clear"}
 
 
 class Bot:
-    def __init__(self, god, shoot=False):
-        self.g = Game(1)
+    def __init__(self, god, shoot=False, planet=1):
+        self.g = Game(1, start=False)
         self.c = self.g.c
+        self.c.write_ram(self.g.sym["FIRST_PLANET"], bytes([planet]))
+        self.g.start()
+        self.planet_time = self.g.word("PLANET_TIME")
         if god:
             self.c.write_ram(self.g.sym["GOD_MODE"], b"\x01")
         table = self.g.bytes("GEN_TABLE", NUM_GENS * GEN_ENTRY)
@@ -95,7 +99,7 @@ class Bot:
         elif mode in (MODE_FOOT, MODE_CHARGING):
             near = self.nearest_hostile(px + 4)
             # walkers on the ground are shot from afar, fliers when close
-            reach = (50, 70) if near and near[2] in (CRAWLER, THROWER) else (14, 28)
+            reach = {CRAWLER: (50, 70), THROWER: (84, 90)}.get(near[2] if near else 0, (14, 28))
             if near and abs(near[0]) < reach[mode == MODE_FOOT]:
                 if mode == MODE_CHARGING:
                     self.keys()                      # let go and fight
@@ -128,7 +132,7 @@ class Bot:
             self.c.run_frames(2)
             frame += 1
             step(frame)
-            if frame > 200 * FPS:
+            if frame > 260 * FPS:
                 raise AssertionError("the game did not end")
         self.keys()
         over = self.g.byte("GAME_OVER")
@@ -208,16 +212,16 @@ BOTS = {          # name: (god mode, shoots, must end with)
 }
 
 
-def main(names, seed=None):
+def main(names, seed=None, planet=1):
     failed = False
     for name in names:
         god, shoot, must = BOTS[name]
-        bot = Bot(god, shoot)
+        bot = Bot(god, shoot, planet)
         play = {"player": bot.keeper}.get(name) or getattr(bot, name)
         if seed is not None:
             bot.c.write_ram(bot.g.sym["RAND_SEED"], bytes([seed & 255, seed >> 8 | 1]))
         over, left, score = bot.play(play)
-        played = 180 - left
+        played = bot.planet_time - left
         verdict = "ok" if must is None or over in must else "WRONG"
         failed |= verdict == "WRONG"
         print(f"{name:7} {END_NAMES[over]:12} after {played // 60}:{played % 60:02}, "
@@ -230,7 +234,8 @@ def main(names, seed=None):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    seed = None
-    if args and args[0].startswith("--seed="):
-        seed = int(args.pop(0)[7:])
-    main(args or list(BOTS), seed)
+    opts = {"seed": None, "planet": 1}
+    while args and args[0].startswith("--"):
+        key, value = args.pop(0)[2:].split("=")
+        opts[key] = int(value)
+    main(args or list(BOTS), **opts)

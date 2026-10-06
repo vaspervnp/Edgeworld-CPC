@@ -1,14 +1,12 @@
 {
-  "name": "Placeholder second planet: the first planet's art in a frozen palette, harder (milestone 9 gives it its own tiles)",
-  "art": "testplanet",
-  "time": 200,
+  "name": "Glacis, the ice world: trackers swarm over the peaks",
+  "art": "ice",
+  "colours": ["blue", "sky_blue", "bright_cyan", "pastel_cyan"],
+  "sky": ["black", "blue", "bright_blue"],
+  "time": 195,
   "shield_fails": 3,
-  "spawn_every": 65,
-  "ambient_max": 4,
-  "mix": ["tracker", "drifter", "tracker", "crawler", "thrower", "thrower", "drifter", "crawler"],
-  "generators": [[32, 26, 49152], [96, 24, 57344], [160, 32, 40960], [224, 28, 53248]],
-  "sky": ["black", "bright_blue", "sky_blue"],
-  "palette": ["black", "black", "bright_green", "pastel_blue", "bright_white", "blue",
-              "bright_cyan", "pastel_cyan", "white", "white", "sky_blue", "cyan",
-              "bright_green", "bright_magenta", "bright_cyan", "pastel_magenta"]
+  "spawn_every": 72,
+  "ambient_max": 3,
+  "mix": ["tracker", "drifter", "tracker", "drifter", "crawler", "tracker", "drifter", "thrower"],
+  "generators": [[32, 22, 49152], [96, 26, 57344], [160, 20, 40960], [224, 28, 53248]]
 }

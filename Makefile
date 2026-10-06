@@ -6,29 +6,34 @@ BUILD  := build
 SRC    := $(wildcard src/*.asm)
 DSK    := $(BUILD)/shield.dsk
 
-.PHONY: all clean test
+.PHONY: all clean test planet-art
 
-all: $(DSK)
+all: $(DSK) planet-art
 
 $(BUILD):
 	mkdir -p $@
 
-assets/testplanet.png assets/testplanet_fg.png &: tools/gen_testplanet.py tools/cpcpal.py
-	$(PYTHON) tools/gen_testplanet.py assets/testplanet.png assets/testplanet_fg.png
+# The planets: art from each description (assets/planets/planetN.json),
+# converted to tiles, packed into bank images the game loads from disc
+# (src/disc.asm).
+PLANETS := 1 2 3 4
+.SECONDARY: $(PLANETS:%=assets/planet%.png) $(PLANETS:%=assets/planet%_fg.png) $(PLANETS:%=$(BUILD)/planet%.inc)
+planet-art: $(PLANETS:%=assets/planet%.png)     # the tests compare the screen with it
 
-$(BUILD)/testplanet.inc: assets/testplanet.png assets/testplanet_fg.png tools/png2tiles.py tools/cpcpal.py | $(BUILD)
-	$(PYTHON) tools/png2tiles.py assets/testplanet.png $(BUILD)/testplanet assets/testplanet_fg.png
+assets/planet%.png assets/planet%_fg.png &: assets/planets/planet%.json tools/gen_planet.py tools/pens.py tools/cpcpal.py
+	$(PYTHON) tools/gen_planet.py $< assets/planet$*.png assets/planet$*_fg.png
 
-# The planets: bank images the game loads from disc (src/disc.asm).
-PLANETS := 1 2
-$(BUILD)/planet%.bin: assets/planets/planet%.json $(BUILD)/testplanet.inc tools/mkplanet.py tools/cpcpal.py
-	$(PYTHON) tools/mkplanet.py $< $(BUILD)/testplanet $@
+$(BUILD)/planet%.inc: assets/planet%.png assets/planet%_fg.png tools/png2tiles.py tools/cpcpal.py | $(BUILD)
+	$(PYTHON) tools/png2tiles.py assets/planet$*.png $(BUILD)/planet$* assets/planet$*_fg.png
+
+$(BUILD)/planet%.bin: assets/planets/planet%.json $(BUILD)/planet%.inc tools/mkplanet.py tools/pens.py tools/cpcpal.py
+	$(PYTHON) tools/mkplanet.py $< $(BUILD)/planet$* $@
 
 # Extra bank 6: the last sprites, and the title logo at #2800 (src/logo.asm).
 $(BUILD)/bank6.bin: $(BUILD)/sprites.inc $(BUILD)/logo.bin tools/pack_bank.py
 	$(PYTHON) tools/pack_bank.py $@ $(BUILD)/sprites.bank6.bin@0 $(BUILD)/logo.bin@2800
 
-assets/logo.png $(BUILD)/logo.bin &: tools/gen_logo.py tools/gen_testplanet.py tools/font.py tools/cpcpal.py | $(BUILD)
+assets/logo.png $(BUILD)/logo.bin &: tools/gen_logo.py tools/pens.py tools/font.py tools/cpcpal.py | $(BUILD)
 	$(PYTHON) tools/gen_logo.py assets/logo.png $(BUILD)/logo.bin
 
 $(BUILD)/font.bin: tools/font.py | $(BUILD)
@@ -37,7 +42,7 @@ $(BUILD)/font.bin: tools/font.py | $(BUILD)
 $(BUILD)/sound.inc: tools/gen_music.py | $(BUILD)
 	$(PYTHON) tools/gen_music.py $@
 
-assets/sprites.png assets/sprites.json &: tools/gen_sprites.py tools/gen_testplanet.py tools/cpcpal.py
+assets/sprites.png assets/sprites.json &: tools/gen_sprites.py tools/pens.py tools/cpcpal.py
 	$(PYTHON) tools/gen_sprites.py assets/sprites.png assets/sprites.json
 
 $(BUILD)/sprites.inc: assets/sprites.png assets/sprites.json tools/spritec.py tools/cpcpal.py | $(BUILD)
@@ -64,7 +69,7 @@ $(DSK): $(BUILD)/shield.bin $(BUILD)/sprites.inc $(BUILD)/bank6.bin $(PLANETS:%=
 		BANK5=$(BUILD)/sprites.bank5.bin BANK6=$(BUILD)/bank6.bin \
 		$(foreach p,$(PLANETS),PLANET$(p)=$(BUILD)/planet$(p).bin)
 
-test: $(DSK)
+test: $(DSK) planet-art
 	$(PYTHON) tests/test_screen.py
 	$(PYTHON) tests/test_player.py
 	$(PYTHON) tests/test_generators.py
@@ -72,6 +77,7 @@ test: $(DSK)
 	$(PYTHON) tests/test_game.py
 	$(PYTHON) tests/test_planets.py
 	$(PYTHON) tests/playtest.py idle gunner keeper
+	for p in 2 3 4; do $(PYTHON) tests/playtest.py --planet=$$p keeper || exit 1; done
 
 clean:
 	rm -rf $(BUILD)

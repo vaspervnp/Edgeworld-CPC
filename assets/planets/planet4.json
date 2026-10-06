@@ -1,0 +1,12 @@
+{
+  "name": "Pyre, the volcanic world: everything at once, and fast drains",
+  "art": "volcano",
+  "colours": ["red", "black", "mauve", "pink"],
+  "sky": ["black", "magenta", "purple"],
+  "time": 225,
+  "shield_fails": 3,
+  "spawn_every": 66,
+  "ambient_max": 3,
+  "mix": ["drifter", "tracker", "crawler", "thrower", "tracker", "crawler", "drifter", "thrower"],
+  "generators": [[32, 30, 40960], [96, 26, 36864], [160, 32, 45056], [224, 24, 32768]]
+}

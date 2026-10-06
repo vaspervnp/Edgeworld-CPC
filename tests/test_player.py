@@ -180,6 +180,30 @@ def test():
     assert p.b("PL_MODE") == MODE_MOUNTED and p.centred()
     print("whistle and mount: ok")
 
+    # From any distance either side, a whistled Runner arrives and stops
+    # (it used to swing round the rider for ever from some places).
+    p.press([cpc.KEY_DOWN, " "], 4)        # off again
+    p.frames(10)
+    rider = p.g.word("PL_X")
+    for offset in range(-30, 31):          # every position: it moves 3 pixels a step
+        rn = (rider - 32 + offset * 8) & 0x1FFF        # saddle offset from the rider
+        p.g.c.write_ram(p.g.sym["RN_X"], bytes([rn & 255, rn >> 8]))
+        p.g.c.write_ram(p.g.sym["RN_STATE"], bytes([IDLE]))
+        p.frames(4)                         # W let go since the last try
+        p.press(["w"], 4)
+        for _ in range(60):
+            p.g.next_frame()
+            if p.b("RN_STATE") == IDLE:
+                break
+        assert p.b("RN_STATE") == IDLE, f"the Runner never stopped (offset {offset})"
+        assert abs(p.x("RN_X") + 4 - p.x("PL_X")) <= 3, offset
+    p.screen = Screen(p.g)
+    p.pos = p.screen.check(p.g.word("SCROLL_POS"))
+    p.press([cpc.KEY_DOWN, " "], 4)
+    p.frames(80)
+    assert p.b("PL_MODE") == MODE_MOUNTED
+    print("whistle from anywhere: ok")
+
     # No Runner: whistling brings a spare from the edge of the view.
     p.press([cpc.KEY_DOWN, " "])
     p.frames(4)

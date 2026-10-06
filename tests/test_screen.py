@@ -32,8 +32,8 @@ import cpc
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import font  # noqa: E402
 
-PLANET = os.path.join(ROOT, "assets", "testplanet.png")
-PLANET_FG = os.path.join(ROOT, "assets", "testplanet_fg.png")
+PLANET = os.path.join(ROOT, "assets", "planet{}.png")        # by number
+PLANET_FG = os.path.join(ROOT, "assets", "planet{}_fg.png")
 SPRITES = os.path.join(ROOT, "assets", "sprites.png")
 SPRITES_JSON = os.path.join(ROOT, "assets", "sprites.json")
 HUD = os.path.join(ROOT, "assets", "hud.png")
@@ -80,8 +80,9 @@ class Expected:
         self.pf_pal = [v & 31 for v in game.bytes("PF_PALETTE", 16)]
         hud_pal = [v & 31 for v in game.bytes("HUD_PALETTE", 16)]
         self.sky = [v & 31 for v in game.bytes("SKY_COLOURS", 3)]
-        self.planet = [bytes(row) * 2 for row in indexed_rows(PLANET)]
-        self.fg = [bytes(row) * 2 for row in indexed_rows(PLANET_FG)]
+        n = game.byte("CURRENT_PLANET")
+        self.planet = [bytes(row) * 2 for row in indexed_rows(PLANET.format(n))]
+        self.fg = [bytes(row) * 2 for row in indexed_rows(PLANET_FG.format(n))]
         self.frames = sprite_frames()
         self.hud = [bytes(hud_pal[p] for p in row) for row in indexed_rows(HUD)]
         self.marker = hud_pal[4]

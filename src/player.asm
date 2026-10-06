@@ -532,8 +532,12 @@ update_runner:
     ld (rn_state),a
     ret
 .run:
-    ; head for the rider: the sign of rider - Runner, the short way round
-    ld de,(rn_x)
+    ; head for the rider: the sign of rider - saddle, the short way round
+    ; (the point the arrival test measures, or it can swing round it)
+    ld hl,(rn_x)
+    ld de,RIDER_ON_RUNNER
+    add hl,de
+    ex de,hl
     ld hl,(pl_x)
     or a
     sbc hl,de

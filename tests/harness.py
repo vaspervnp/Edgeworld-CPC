@@ -61,7 +61,7 @@ class Game:
         self.c.key_down(" ")
         self.c.run_frames(6)
         self.c.key_up(" ")
-        self.wait_state(ST_PLAY, 100)
+        self.wait_state(ST_PLAY, 500)     # a planet may load from disc first
         flips = self.word("FLIPS")
         for _ in range(100):
             self.c.run_frames(1)

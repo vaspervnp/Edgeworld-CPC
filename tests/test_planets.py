@@ -7,17 +7,20 @@ Checks the first planet as booted, clearing it into the second (loaded
 from disc meanwhile, score and spare Runners kept, every frame of the new
 planet checked pixel for pixel in its own palette), a load with the disc
 out (the border flashes and it keeps trying until the disc is back), the
-end of the last planet, and the title going back to the first planet.
+title going back to the first planet, every planet in play (its frames
+checked pixel for pixel) and the end of the last planet.
 """
 import os
 
 from harness import Game, ROOT, ST_TITLE, ST_PLAY, ST_ENTRY
 from test_screen import Screen
 from test_game import Flow, PEN_GOOD
+import cpc
 
 BANK7 = 7
 HEADER, COL_FG, HEADER_SIZE = 0x1100, 0x1500, 52
 GAME_OVER_CLEAR = 3
+NUM_PLANETS = 4
 BORDER_RED = 0x0C       # hardware colour of bright red, without bit 6
 
 
@@ -107,11 +110,34 @@ def test():
     assert g.byte("LOAD_TRIES") == 0
     print(f"disc out: retried {tries} times, loaded once it was back: ok")
 
+    # Each planet in play: its own art, tiles, foreground and palette,
+    # checked frame by frame while riding right, firing.
+    for n in range(1, NUM_PLANETS + 1):
+        c.write_ram(g.sym["FIRST_PLANET"], bytes([n]))
+        g.start()
+        c.write_ram(g.sym["GOD_MODE"], b"\x01")
+        check_loaded(g, n)
+        screen = Screen(g)
+        pos = screen.check(g.word("SCROLL_POS"))
+        c.key_down(cpc.KEY_RIGHT)
+        c.key_down(" ")
+        for _ in range(150):
+            g.next_frame()
+            pos = screen.check(pos)
+        c.key_up(" ")
+        c.key_up(cpc.KEY_RIGHT)
+        c.write_ram(g.sym["GOD_MODE"], b"\x00")
+        c.write_ram(g.sym["SCORE"], bytes(2))
+        c.write_ram(g.sym["GEN_CHARGE"], bytes(8))   # shield down: back to the title
+        g.wait_state(ST_TITLE, 1500)
+        print(f"planet {n} in play: ok (scrolled to {pos})")
+
     # The last planet cleared: the end of the game.
+    c.write_ram(g.sym["FIRST_PLANET"], bytes([NUM_PLANETS - 1]))
     g.start()
     f.screen = None
     clear_planet(f)
-    wait_planet(g, 2)
+    wait_planet(g, NUM_PLANETS)
     f.screen = None
     clear_planet(f)
     f.wait_text(33, "EVERY PLANET IS SAFE!", PEN_GOOD)

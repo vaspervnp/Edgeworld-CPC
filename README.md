@@ -23,8 +23,8 @@ is in [plan.md](plan.md).
 | 6 | Enemies: drifters, trackers, crawlers, throwers, breach carrier; collisions and energy | **Done** |
 | 7 | First planet complete: timer, win/lose, title, high scores, music and sound effects; playtest bots | **Done** |
 | 8 | Banking and loading: planets in extra RAM, loaded from disc by the game's own floppy code | **Done** |
-| 9 | Planets 2-4 | Next |
-| 10 | Release | |
+| 9 | Planets 2-4: four worlds with their own art, palettes and enemy mixes; difficulty curve | **Done** |
+| 10 | Release | Next |
 
 The title screen shows the logo over the first planet, how to play and the
 high-score table. You ride the Runner around the 1024-pixel planet, jump,
@@ -56,15 +56,24 @@ winning and losing and sound effects on the third channel. Everything
 holds 25 fps with every frame inside budget.
 
 Clearing a planet takes you to the next, loaded from disc meanwhile, with
-your score and spare Runners and a full energy bar; clearing the last one
-ends the game. Each planet brings its own map, tiles, palette, sky, time,
-generator drain rates and enemy pressure and mix. For now there are two:
-the first, and a placeholder second that reuses its art in a frozen
-palette, with tougher numbers; milestone 9 gives planets 2-4 their own.
+your score and spare Runners and a full energy bar; clearing the fourth
+ends the game. Each planet brings its own skyline, ground, props,
+foreground, colours, sky, time, generator drain rates and enemy mix:
+
+| # | Planet | Look | Enemies | Time | Drain (per frame, all 4) |
+|---|--------|------|---------|------|--------------------------|
+| 1 | Ferros, the rust moon | rolling mauve hills, red soil, crystal spires | a bit of everything | 3:00 | 90 |
+| 2 | Glacis, the ice world | jagged snow-capped peaks, ice sheet, ice shards | trackers swarm | 3:15 | 96 |
+| 3 | Mesa Ra, the desert | flat-topped mesas, sand, rock hoodoos | crawlers and throwers | 3:30 | 104 |
+| 4 | Pyre, the volcanic world | smoking cones with lava, black ash, basalt columns | everything, faster | 3:45 | 112 |
+
+Difficulty rises mostly with the drain rates, lower starting charges and
+longer timers; enemies come a little faster each planet, never more than
+three at once besides breach waves and the carrier.
 
 ![The title screen](docs/title.png)
 
-![Playing the second planet](docs/milestone8.png)
+![The four planets](docs/planets.png)
 
 ## Building
 
@@ -158,8 +167,9 @@ second game that starts afresh, and the shield failing.
 first planet's file at boot and its header taken into base RAM, clearing
 it into the second (loaded meanwhile, score and Runners kept, its frames
 checked pixel for pixel in its own palette), a load with the disc taken
-out (the border flashes and it keeps trying until the disc is back), and
-the end of the last planet.
+out (the border flashes and it keeps trying until the disc is back),
+every planet in play (its own art, tiles and foreground checked pixel for
+pixel while riding and firing), and the end of the last planet.
 
 `tests/playtest.py` checks for the "rolling demo" problem, that the game
 does not play itself, with bots that play whole games:
@@ -168,19 +178,31 @@ does not play itself, with bots that play whole games:
 |-----|-------|------|
 | idle | touches nothing | lose (energy gone, after about 0:40) |
 | gunner | rides laps firing, never recharges, cannot be hurt | lose (shield down at 1:21) |
-| keeper | recharges the weakest generator over and over, cannot be hurt | clear the planet (about 9 recharges) |
+| keeper | recharges the weakest generator over and over, cannot be hurt | clear the planet (30-37 recharges) |
 | player | the keeper firing as it goes, and enemies can hurt it | (reported) |
 | skilled | the player, also jumping crawlers and turning to shoot what comes near | (reported) |
 
-`make test` runs the first three. The last two measure the difficulty;
-`--seed=N` changes the enemies. Over eight seeds the skilled bot cleared
-the planet three times and otherwise lasted 1:05 to 2:19 of the three
-minutes, which is about right for the first planet: it never dodges,
-aims carelessly and charges with enemies around, and a person does better.
-Tuning that came out of it: trackers hang still for a moment after each
-bomb so they can be shot from below, enemy pressure became planet data
-(one every 3 seconds, at most 3 about), and the shield fails at three
-drained generators, so camping at one generator does not work.
+`make test` runs the first three on planet 1 and the keeper on every
+planet, so each can be held by recharging. The last two measure the
+difficulty; `--planet=N` picks the planet and `--seed=N` changes the
+enemies. Over six seeds a planet, the skilled bot (which never dodges,
+aims carelessly and charges with enemies around: a person does better):
+
+| Planet | Cleared | Otherwise lasted |
+|--------|---------|------------------|
+| 1 | 2 of 6 | 0:59 to 1:56 of 3:00 |
+| 2 | 2 of 6 | 1:17 to 3:10 of 3:15 |
+| 3 | 0 of 6 | 1:02 to 2:44 of 3:30 |
+| 4 | 0 of 6 | 0:56 to 2:38 of 3:45 (half by the shield failing) |
+
+Tuning that came out of the bots: trackers hang still for a moment after
+each bomb so they can be shot from below; throwers walk into the view
+before they lob, where they can be seen and shot (they used to stay just
+off screen, out of reach of a rider on foot); enemy pressure is planet
+data; and the shield fails at three drained generators, so camping at
+one generator does not work. They also found a bug: a whistled Runner
+coming from some places swung round the rider for ever, never stopping
+(`tests/test_player.py` now whistles it from every distance).
 
 Other tools:
 
@@ -267,17 +289,28 @@ on every planet (the HUD radar and the core pen rely on them).
 **Planets.** `tools/mkplanet.py` packs a planet into a bank image from its
 art (converted by `tools/png2tiles.py`) and a description in
 `assets/planets/planetN.json` (time, generators, enemy pressure and mix,
-sky, optionally a palette): at `&4000` the map, at `&5100` a 52-byte header
+colours, sky): at `&4000` the map, at `&5100` a 52-byte header
 of the parameters, then the tile address tables, the tile attributes, the
 foreground columns, the tiles at `&5600` and the foreground overlays at
 `&6600`. The game loads it into extra RAM bank 7 when the planet is played,
 and copies the header and the foreground columns into base RAM (the sprite
 code reads the latter with a sprite bank paged in). The map, tiles and
 overlays are only read with bank 7 paged in, by the column drawing and the
-sprite restore and foreground passes. Sprites share the playfield
-palette: they use pens 3-15, so a planet's palette that changes those also
-recolours the sprites (the placeholder second planet does; milestone 9
-will settle which pens planets may change).
+sprite restore and foreground passes.
+
+`tools/gen_planet.py` draws a planet's art from its description, in one of
+four styles (rust, ice, desert, volcano: skyline, ground texture, props on
+the crust, foreground objects). Skylines keep to the tile grid (heights at
+column edges in multiples of 8 lines, steps of at most 8), so a planet
+needs 43 to 89 tiles; the generators are drawn alike everywhere.
+
+**Pens.** Sprites share the playfield palette, so it is split
+(`tools/pens.py`): pen 0 black, pen 1 the raster sky, pen 2 the generator
+core, pens 3-6 the planet's own four colours, and pens 7-15 fixed (bright
+white, bright yellow, orange, bright red, grey, bright green, green,
+magenta, pastel blue) for the sprites, the generators and anything a
+planet wants in those colours. The sprites were redrawn into the nine
+fixed pens; `tools/mkplanet.py` refuses a planet whose art changes them.
 
 **Loading from disc.** The firmware is gone once the game runs (the screen
 buffers sit over its memory), so `src/disc.asm` drives the uPD765 floppy
@@ -342,7 +375,10 @@ foreground up to 3.5K when sprites pass behind it, game logic about 3K,
 sound about 1.7K. Measured end to end with `tests/profile.py --work` (flip
 to next buffer queued, interrupts included): median 21.8K, worst 26.5K of
 39.9K us; the screen test's busiest frame, with the most enemies on
-screen, still leaves 11K us spare. The restore stays the main
+screen, still leaves 11K us spare. The heaviest case is a late planet
+with breaches: a breach wave and the carrier on top of the ambient enemies
+(6 enemies, missiles, bolts); stress runs on planet 4 left 1.9K to 6.7K
+NOPs spare at the worst, with no frame late. The restore stays the main
 optimisation target.
 
 **Tiles.** A tile is one CRTC character: 4 Mode 0 pixels by 8 lines, 16 bytes.
@@ -374,7 +410,8 @@ palette, plus the foreground overlays from a second mask image;
 | `src/hud.asm` | HUD setup and radar marker |
 | `src/macros.asm` | Shared macros |
 | `src/hw.asm` | Hardware ports and constants |
-| `tools/gen_testplanet.py` | Generates the test planet image and its foreground mask |
+| `tools/gen_planet.py` | Draws a planet's art and foreground mask from its description, in one of four styles |
+| `tools/pens.py` | The playfield pens: fixed ones for sprites, four per planet |
 | `tools/gen_sprites.py` | Generates the sprite sheet |
 | `tools/gen_hud.py` | Generates the HUD image |
 | `tools/gen_logo.py` | Generates the title logo |
@@ -412,7 +449,7 @@ palette, plus the foreground overlays from a second mask image;
 | `&8000-&BFFF` | Playfield buffer 2 (and, with buffer 1, where a planet file is read before it goes into bank 7) |
 | `&C000-&FFFF` | Playfield buffer 1 |
 | Extra RAM 4-6 | Sprites: compiled routines and raw pixels (41K, 45 frames); at `&2800` in bank 6, the title logo (2.3K) |
-| Extra RAM 7 | The current planet, loaded from disc: map, header, tiles, foreground (10.4K for the first) |
+| Extra RAM 7 | The current planet, loaded from disc: map, header, tiles, foreground (9.7K to 11K) |
 
 The CRTC always reads base RAM, so the HUD stays on screen when one of the
 6128's extra banks is paged in at `&4000`.

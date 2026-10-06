@@ -1,0 +1,12 @@
+{
+  "name": "Mesa Ra, the desert: crawlers and throwers on the sand",
+  "art": "desert",
+  "colours": ["yellow", "pastel_yellow", "pink", "red"],
+  "sky": ["black", "magenta", "purple"],
+  "time": 210,
+  "shield_fails": 3,
+  "spawn_every": 70,
+  "ambient_max": 3,
+  "mix": ["crawler", "thrower", "crawler", "drifter", "thrower", "crawler", "tracker", "thrower"],
+  "generators": [[32, 26, 45056], [96, 30, 40960], [160, 22, 49152], [224, 26, 36864]]
+}

@@ -22,7 +22,7 @@ the parameters from a JSON file:
   generators    4 x [map column, drain per frame, starting charge]; the
                 columns are fixed (the HUD radar and the core pen rely on them)
   sky           3 colours of the raster sky bands
-  palette       optional: 16 colour names replacing the art's palette
+  colours       pens 3-6 (tools/pens.py); the art's palette must agree
 
 Usage: mkplanet.py planet.json art_prefix out.bin
 """
@@ -30,6 +30,7 @@ import json
 import sys
 
 from cpcpal import COLOURS
+import pens
 
 BASE = 0x4000
 HEADER, TILE_LO, TILE_HI, TILE_ATTR, COL_FG, TILES, FG = (
@@ -50,11 +51,12 @@ def header(p, art_palette):
     assert [g[0] for g in gens] == GEN_COLS, "generator columns are fixed"
     for col, rate, charge in gens:
         out += bytes([col]) + rate.to_bytes(2, "little") + charge.to_bytes(2, "little")
-    if p.get("palette"):
-        assert len(p["palette"]) == 16
-        out += bytes(COLOURS[n][0] for n in p["palette"])
-    else:
-        out += art_palette
+    fixed = pens.palette(p["colours"])
+    expect = bytes(COLOURS[n][0] for n in fixed)
+    for pen in range(16):
+        if pen != pens.SKY:
+            assert art_palette[pen] == expect[pen], f"pen {pen} of the art is not {fixed[pen]}"
+    out += art_palette
     out += bytes(COLOURS[n][0] for n in p["sky"])
     assert len(out) == HEADER_SIZE, len(out)
     return out

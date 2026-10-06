@@ -13,7 +13,7 @@ fg_data    equ #6600        ; the foreground overlays, 32 bytes each
 
 MAP_COLS   equ 256
 MAP_ROWS   equ 17
-NUM_PLANETS equ 2
+NUM_PLANETS equ 4
 NUM_GENS   equ 4            ; at map columns 32, 96, 160 and 224 on every planet
 GEN_ENTRY  equ 5
 TITLE_POS  equ 0            ; scroll position the title shows (see logo.asm)

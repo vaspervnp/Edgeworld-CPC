@@ -31,7 +31,7 @@ PEN_DIM      equ 2          ; grey
 
 ; A new game: the first planet, no score, the spare Runners.
 game_start:
-    ld a,1
+    ld a,(first_planet)
     ld (planet_num),a
     ld hl,0
     ld (score),hl
@@ -417,4 +417,5 @@ score_shown: dw 0
 bonus:       dw 0
 game_state:  db ST_BOOT
 planet_num:  db 1           ; the planet being played, 1 on
+first_planet: db 1          ; where a game starts (tests start elsewhere)
 line_buf:    ds 41

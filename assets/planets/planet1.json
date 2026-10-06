@@ -1,11 +1,12 @@
 {
-  "name": "The rust moon: the first planet",
-  "art": "testplanet",
+  "name": "Ferros, the rust moon",
+  "art": "rust",
+  "colours": ["mauve", "red", "yellow", "cyan"],
+  "sky": ["black", "blue", "magenta"],
   "time": 180,
   "shield_fails": 3,
   "spawn_every": 75,
   "ambient_max": 3,
   "mix": ["drifter", "drifter", "tracker", "crawler", "crawler", "thrower", "drifter", "tracker"],
-  "generators": [[32, 20, 61440], [96, 22, 45056], [160, 30, 53248], [224, 18, 36864]],
-  "sky": ["black", "blue", "magenta"]
+  "generators": [[32, 20, 61440], [96, 22, 45056], [160, 30, 53248], [224, 18, 36864]]
 }
