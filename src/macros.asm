@@ -1,5 +1,12 @@
 ; Macros shared by the engine.
 
+; Gate array RAM configuration cfg: base RAM, or an extra bank at #4000.
+; Trashes BC.
+macro PAGE cfg
+    ld bc,GA_PORT*256+{cfg}
+    out (c),c
+mend
+
 ; HL = tile_data + A * 16, from the 256-aligned tables tile_lo / tile_hi.
 macro TILE_SRC
     ld l,a

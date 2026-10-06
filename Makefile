@@ -18,6 +18,7 @@ assets/testplanet.png assets/testplanet_fg.png &: tools/gen_testplanet.py tools/
 
 $(BUILD)/testplanet.inc: assets/testplanet.png assets/testplanet_fg.png tools/png2tiles.py tools/cpcpal.py | $(BUILD)
 	$(PYTHON) tools/png2tiles.py assets/testplanet.png $(BUILD)/testplanet assets/testplanet_fg.png
+	cp $(BUILD)/testplanet.map $(BUILD)/planet.bank7.bin
 
 assets/sprites.png assets/sprites.json &: tools/gen_sprites.py tools/gen_testplanet.py tools/cpcpal.py
 	$(PYTHON) tools/gen_sprites.py assets/sprites.png assets/sprites.json
@@ -47,6 +48,7 @@ test: $(DSK)
 	$(PYTHON) tests/test_screen.py
 	$(PYTHON) tests/test_player.py
 	$(PYTHON) tests/test_generators.py
+	$(PYTHON) tests/test_enemies.py
 
 clean:
 	rm -rf $(BUILD)

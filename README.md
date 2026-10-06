@@ -20,8 +20,8 @@ is in [plan.md](plan.md).
 | 3 | Sprite engine: masked, pre-shifted sprites, tile restore, foreground layer; Runner + 8 enemies at 25 fps | **Done** |
 | 4 | Player: riding, jumping, shooting, dismount/mount, whistle; compiled sprites in extra RAM | **Done** |
 | 5 | Generators and radar: drain, unstable/drained states, breaches, recharge minigame | **Done** |
-| 6 | Enemies | Next |
-| 7 | First planet complete | |
+| 6 | Enemies: drifters, trackers, crawlers, throwers, breach carrier; collisions and energy | **Done** |
+| 7 | First planet complete | Next |
 | 8 | Banking and loading (sprites already load into extra RAM) | |
 | 9 | Planets 2-4 | |
 | 10 | Release | |
@@ -34,11 +34,20 @@ red (drained, letting a breach in), and the core of the one in view does the
 same. To recharge one, get off, stand at it and hold down: it charges
 slowly, and fire pressed while its core flashes white pumps in a big boost,
 but pressed at the wrong time stalls it for a second. The SHIELD gauge in
-the HUD shows the charge of the generator in view. Eight drifters swoop
-around the view as the enemy load test; they do nothing yet. Everything
-holds 25 fps with every frame inside budget.
+the HUD shows the charge of the generator in view.
 
-![Milestone 5 in the emulator](docs/milestone5.png)
+Enemies come in from the edges of the view: drifters that float at you and
+explode on contact, trackers that sweep overhead dropping bombs, crawlers
+that walk the ground (jump them), and throwers that lob rocks in an arc.
+When a generator drains, a wave pours out of the breach; with two drained,
+the breach carrier arrives, a big ship that takes 12 bolts and bombs from
+above. Mounted, hits fall on the Runner: three and it dies, throwing the
+rider off. On foot, every hit costs a lot of energy (the ENERGY bar), and
+at zero the game is over. Shot enemies score points and one in four leaves
+an energy cell that tops you up. Everything holds 25 fps with every frame
+inside budget.
+
+![Milestone 6 in the emulator](docs/milestone6.png)
 
 ## Building
 
@@ -114,13 +123,17 @@ state after each action and every frame's picture as above.
 `tests/test_generators.py` does the same for the generators: drain rates,
 unstable flashing on the radar and the core, breaches, and the recharge
 minigame (slow charge, a pump in time, a stall, letting go).
+`tests/test_enemies.py` places enemies straight into the game's slots and
+checks shooting them, hits mounted and on foot, jumping a crawler, tracker
+bombs killing the Runner, a thrower's rock, energy cells, the breach carrier
+and breach waves, the spawner's limits and game over.
 
 Other tools:
 
 - `tests/profile.py` samples the program counter and shows where the time
   goes per routine; `tests/profile.py --work` measures every frame's work
   against the 39,936 us of two frames, riding at full speed and firing
-  (currently median 33K, worst 37.6K).
+  (currently median 19.3K, worst 25.1K).
 - `tests/calibrate_rasters.py` shows where raster colour changes land in the
   scanline; it was used to tune the delays in `src/system.asm`.
 
@@ -202,12 +215,25 @@ fractional: the Runner accelerates to 4 pixels a frame (the scroll speed)
 and the camera moves a column a frame to keep it centred; on foot the
 camera stops. Bolts are sprites too (up to 4).
 
+**Enemies.** Up to 6 enemies (8 bytes each: type, x, y, hit points,
+timer, animation and direction, cell drop) and 4 missiles, updated every
+frame through a jump table by type; a type table gives each its frame,
+size, hit points, damage and points. Collisions are box overlaps in world
+coordinates (x wraps at 1024). The spawner brings one from the planet's
+mix (`src/planet.asm`) every 60 frames while fewer than 4 are about; it
+also turns the generators' breach flags into waves and calls the carrier.
+Enemies far behind the player are dropped. Mounted, a hit costs the rider
+4 energy and the Runner one of its 3 hits; on foot, 10 to 20 depending on
+the enemy. After a hit the player flickers for 40 frames, untouchable.
+
 **Frame budget** (riding at full speed and firing, NOPs of 39,936): restore
 about 10K, two new scroll columns about 5K, sprite drawing about 4K
 (compiled; more when sprites are clipped), interrupts about 2.5K,
 foreground up to 3.5K when sprites pass behind it, game logic about 3K.
-Median 33K, worst 37.6K: the restore is the next optimisation target, before
-the enemies of milestone 6 add their logic.
+Measured end to end with `tests/profile.py --work` (flip to next buffer
+queued, interrupts included): median 19.3K, worst 25.1K of 39.9K us; the
+screen test's busiest frame, with the most enemies on screen, still leaves
+13.4K us spare. The restore stays the main optimisation target.
 
 **Tiles.** A tile is one CRTC character: 4 Mode 0 pixels by 8 lines, 16 bytes.
 The map is stored column-major, one byte per cell, with a table of column
@@ -227,15 +253,15 @@ palette, plus the foreground overlays from a second mask image;
 | `src/sprites.asm` | Sprite engine: restore, masked drawing, foreground |
 | `src/player.asm` | The player: riding, on foot, recharging, bolts, whistle, camera; the sprite list |
 | `src/generators.asm` | Shield generators: drain, states, breaches, core colour, radar dots, SHIELD gauge |
-| `src/planet.asm` | Planet data: generator positions, drain rates, starting charges |
-| `src/demo.asm` | The enemy load test: 8 drifters |
+| `src/enemies.asm` | Enemies, missiles, explosions, energy cells; spawner; collisions, hits, ENERGY bar |
+| `src/planet.asm` | Planet data: generator positions, drain rates, starting charges, enemy mix |
 | `src/hud.asm` | HUD setup and radar marker |
 | `src/macros.asm` | Shared macros |
 | `src/hw.asm` | Hardware ports and constants |
 | `tools/gen_testplanet.py` | Generates the test planet image and its foreground mask |
 | `tools/gen_sprites.py` | Generates the sprite sheet |
 | `tools/gen_hud.py` | Generates the HUD image |
-| `tools/gen_tables.py` | Sprite mask table and drifter paths |
+| `tools/gen_tables.py` | Sprite mask table |
 | `tools/spritec.py` | Sprite compiler: code and data for the extra RAM banks |
 | `tools/mkdisc.py` | Builds the disc: BASIC loader, sprite banks, game |
 | `tools/png2tiles.py` | PNG to Mode 0 tiles, map, palette and foreground overlays |
@@ -245,6 +271,7 @@ palette, plus the foreground overlays from a second mask image;
 | `tests/calibrate_rasters.py` | Shows where raster changes land in the scanline |
 | `tests/test_player.py` | Headless test of every player action |
 | `tests/test_generators.py` | Headless test of the generators and the recharge minigame |
+| `tests/test_enemies.py` | Headless test of enemies, hits, energy and game over |
 | `tests/profile.py` | Sampling profiler and per-frame work measurement |
 | `tests/harness.py` | Boots the disc in the headless emulator |
 | `assets/` | Source art |
@@ -255,12 +282,12 @@ palette, plus the foreground overlays from a second mask image;
 |-------|-----|
 | `&0038` | Interrupt handler vector |
 | `&0040-&01FF` | Stack |
-| `&0200-&3FFF` | Code, tables, tiles, map, palettes (about 14K used) |
-| `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block); the rest of block 0 holds start-up and demo data, the other blocks are free |
+| `&0200-&3FFF` | Code, tables, tiles, palettes (about 12.5K used, up to `&33DC`) |
+| `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block); the rest of block 0 holds start-up data, the other blocks are free |
 | `&8000-&BFFF` | Playfield buffer 2 |
 | `&C000-&FFFF` | Playfield buffer 1 |
-
-| Extra RAM 4-6 | Sprites: compiled routines and raw pixels (35K) |
+| Extra RAM 4-6 | Sprites: compiled routines and raw pixels (41K, 45 frames) |
+| Extra RAM 7 | The planet map (4.3K) |
 
 The CRTC always reads base RAM, so the HUD stays on screen when one of the
 6128's extra banks is paged in at `&4000`.

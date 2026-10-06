@@ -11,6 +11,7 @@ PPI_CTRL    equ #F7
 ; Gate array RAM configuration: #C0 = base 64K; #C4-#C7 = extra bank
 ; 4-7 at #4000.
 RAM_BASE equ #C0
+MAP_BANK equ #C7            ; the planet's map, at #4000 (see main.asm)
 
 ; Gate array RMR: mode 0, upper and lower ROM off.
 RMR_MODE0_NOROM equ %10001100

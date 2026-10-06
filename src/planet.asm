@@ -12,3 +12,8 @@ gen_table:
     db 160 : dw 30, #D000
     db 224 : dw 18, #9000
 GEN_ENTRY equ 5
+
+; Enemy mix: the spawner picks one of these 8 at random.
+enemy_mix:
+    db E_DRIFTER, E_DRIFTER, E_TRACKER, E_CRAWLER
+    db E_CRAWLER, E_THROWER, E_DRIFTER, E_TRACKER

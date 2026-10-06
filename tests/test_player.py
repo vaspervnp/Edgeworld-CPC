@@ -27,8 +27,11 @@ SHOT_SIZE, MAX_SHOTS = 6, 4
 
 
 class Player:
-    def __init__(self):
+    """The game on CRTC 1 with no enemies (spawning off), unless enemies."""
+    def __init__(self, enemies=False):
         self.g = Game(1)
+        if not enemies:
+            self.g.c.write_ram(self.g.sym["SPAWN_ON"], b"\x00")
         self.screen = Screen(self.g)
         self.pos = self.screen.check(self.g.word("SCROLL_POS"))
 

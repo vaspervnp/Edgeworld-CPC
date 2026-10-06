@@ -1,8 +1,9 @@
 ; Shieldrunner for the Amstrad CPC 6128.
-; Milestone 5: the player (riding, jumping, shooting, dismounting,
-; whistling, recharging) and the shield generators (drain, radar, gauge,
-; breaches) on the scrolling planet with its fixed HUD, raster sky and
-; sprite engine, with 8 drifters as the enemy load test.
+; Milestone 6: the player (riding, jumping, shooting, dismounting,
+; whistling, recharging), the shield generators (drain, radar, gauge,
+; breaches) and the enemies (five kinds, missiles, waves, collisions,
+; energy) on the scrolling planet with its fixed HUD, raster sky and
+; sprite engine.
 ;
 ; Controls (joystick or cursor keys, space = fire, W = whistle): see
 ; player.asm.
@@ -10,6 +11,10 @@
     include "hw.asm"
     include "../build/testplanet.inc"
     include "../build/sprites.inc"
+
+; The map lives in extra RAM bank 7 (MAP_BANK), paged in at #4000 while
+; the scroll and sprite code read it; tools/mkdisc.py loads it there.
+map_data equ #4000
 
 LOAD_ADDR equ #0200
 STACK_TOP equ #0200
@@ -37,6 +42,7 @@ start:
     call player_init
     call hud_spares
     call gen_init
+    call enemies_init
     ld hl,0
     call scroll_init
     call hud_update
@@ -57,8 +63,9 @@ main_loop:
     add hl,de
     ld (scroll_pos),hl
     call gen_update
+    call enemies_update
     call list_begin
-    call demo_update
+    call enemy_sprites
     call player_sprites
     call list_end
     call scroll_update_back
@@ -76,7 +83,7 @@ main_loop:
     include "player.asm"
     include "planet.asm"
     include "generators.asm"
-    include "demo.asm"
+    include "enemies.asm"
 
     align 256
 mask_table:
@@ -103,8 +110,6 @@ t=t+1
 fg_data:
     incbin "../build/testplanet.fg"
     include "../build/sprites.frames"
-map_data:
-    incbin "../build/testplanet.map"
 pf_palette:
     incbin "../build/testplanet.pal"
 hud_palette:
@@ -113,15 +118,10 @@ end_of_code:
     assert end_of_code <= #4000
 
 ; The HUD page (#4000) uses the first HUD_ROWS*80 bytes of each 2K block;
-; the rest of block 0 holds data the engine itself never reads (start-up
-; and demo data), since the 6128's extra banks will page in over #4000.
+; the rest of block 0 holds data needed only at start-up, since the 6128's
+; extra banks page in over #4000.
 HUD_PAGE_FREE equ #4000+HUD_ROWS*80
     org HUD_PAGE_FREE
-    align 256
-demo_x:
-    incbin "../build/tables.demo",0,256
-demo_y:
-    incbin "../build/tables.demo",256,256
 hud_data:
     incbin "../build/hud.rle"
 end_of_program:

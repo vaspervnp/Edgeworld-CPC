@@ -3,8 +3,9 @@
 
 SHIELD.BAS (ASCII BASIC) lowers HIMEM below #4000 (BASIC only loads binary
 files above it), pages each extra RAM bank in at #4000 (gate array
-RAM configurations #C4 on) and loads its file there, then puts base RAM
-back and runs GAME.BIN. The firmware leaves the extra banks alone, so the
+RAM configurations #C4 on) and loads its file there (build/*.bankN.bin,
+one producer per bank: sprites 4-6, planet 7), then puts base RAM back and
+runs GAME.BIN. The firmware leaves the extra banks alone, so the
 game finds them filled.
 
 Usage: mkdisc.py out.dsk build_dir   (needs iDSK on the PATH)
@@ -25,7 +26,11 @@ def main():
     if len(sys.argv) != 3:
         raise SystemExit(__doc__)
     dsk, build = sys.argv[1:]
-    banks = sorted(glob.glob(os.path.join(build, "sprites.bank*.bin")))
+    banks = sorted(glob.glob(os.path.join(build, "*.bank[4-7].bin")),
+                   key=lambda p: p[-5])
+    numbers = [p[-5] for p in banks]
+    if len(set(numbers)) != len(numbers):
+        raise SystemExit(f"two files for one bank: {banks}")
     stage = os.path.join(build, "disc")
     shutil.rmtree(stage, ignore_errors=True)
     os.makedirs(stage)
@@ -35,7 +40,7 @@ def main():
     names = []
     for path in banks:
         bank = int(re.search(r"bank(\d)\.bin$", path).group(1))
-        name = f"SPR{bank}.BIN"
+        name = f"BANK{bank}.BIN"
         shutil.copy(path, os.path.join(stage, name))
         names.append(name)
         lines.append(f'{n} OUT &7F00,&{0xC0 + bank:X}:LOAD"{name}",&4000')

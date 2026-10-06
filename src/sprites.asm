@@ -57,6 +57,7 @@ mend
 ; buffer's list (back_list: count, then records) before render_sprites.
 render_sprites:
     ; restore under what the buffer showed, from the layouts saved then
+    PAGE MAP_BANK
     ld hl,(back_layouts)
     ld a,(hl)
     inc hl
@@ -75,6 +76,7 @@ render_sprites:
     dec a
     jr nz,.restore
 .restored:
+    PAGE RAM_BASE
     ld hl,(back_list)
     ld a,(hl)
     ld de,(back_layouts)
@@ -103,8 +105,7 @@ render_sprites:
     pop af
     dec a
     jr nz,.draw
-    ld bc,GA_PORT*256+RAM_BASE   ; base RAM back at #4000
-    out (c),c
+    PAGE MAP_BANK                ; the map again, for the foreground
     ; foreground over the sprites that need it
     ld hl,(back_layouts)
     ld b,(hl)
@@ -127,6 +128,7 @@ render_sprites:
     pop bc
 .no_fg:
     djnz .overlay
+    PAGE RAM_BASE
     ret
 
 ; Load the record at HL: sp_x, sp_y and the frame's table entry (sp_w0 on).

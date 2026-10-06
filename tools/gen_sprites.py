@@ -4,8 +4,9 @@
 The Runner (4 running frames and a standing one), its rider on foot
 (standing, 2 walking frames, aiming up), the two together while mounted (4
 frames: one sprite is cheaper than two), all facing right and mirrored to
-face left; a drifter enemy (2 frames); and the rider's bolts (horizontal,
-vertical, diagonal both ways).
+face left; the enemies (drifter, tracker, crawler, rock thrower, breach
+carrier, 2 frames each), their bombs and rocks, an explosion, an energy
+cell; and the rider's bolts (horizontal, vertical, diagonal both ways).
 
 Sprites share the playfield palette; pen 0 is transparent. Writes the sheet
 (one frame after another, left to right) and a JSON list of frames, in the
@@ -72,6 +73,88 @@ RIDER_LEGS = {
     "walk1": ["..ee....", "..eee...", "..ee...."],
 }
 RIDER = RIDER_BODY + RIDER_LEGS["stand"]
+
+TRACKER = [[
+    "..wwww..",
+    ".ewwwwe.",
+    "eeeeeeee",
+    "crcrcrcr",
+    ".eeeeee.",
+    "..e..e..",
+    "..r..r..",
+    "........",
+]]
+TRACKER.append([r.replace("crcrcrcr", "rcrcrcrc") for r in TRACKER[0]])
+
+CRAWLER = [[
+    "..oooo..",
+    ".ooYYoo.",
+    "oorrrroo",
+    "orrrrrro",
+    ".oooooo.",
+    "o.o..o.o",
+    "o.o..o.o",
+    "o..o.o.o",
+], [
+    "..oooo..",
+    ".ooYYoo.",
+    "oorrrroo",
+    "orrrrrro",
+    ".oooooo.",
+    ".o.oo.o.",
+    ".o.oo.o.",
+    "o.o..o.o",
+]]
+
+THROWER_LEGS = ["..uuu...", "..u.u...", ".uu.uu..", ".uu.uu.."]
+THROWER = [[
+    "..uuu...",
+    ".uwuwu..",
+    ".uuuuu..",
+    "..uuu...",
+    ".uuuuu..",
+    "uuuuuuu.",
+    "u.uuu.u.",
+    "u.uuu.u.",
+] + THROWER_LEGS, [
+    "..uuu.ey",
+    ".uwuwuey",
+    ".uuuuuu.",
+    "..uuuu..",
+    ".uuuuu..",
+    "uuuuuu..",
+    "u.uuu...",
+    "u.uuu...",
+] + THROWER_LEGS]
+
+CARRIER = [[
+    "......eeee......",
+    "....eewwwwee....",
+    "...emmmmmmmme...",
+    "..emmmmmmmmmme..",
+    ".emmmrrmmrrmmme.",
+    "emmmmrrmmrrmmmme",
+    "eeeeeeeeeeeeeeee",
+    "eYeYeYeYeYeYeYeY",
+    "eeeeeeeeeeeeeeee",
+    ".emmmmmmmmmmmme.",
+    "..emmmmmmmmmme..",
+    "...eemmmmmmee...",
+    ".....ee..ee.....",
+    "....rr....rr....",
+    "....YY....YY....",
+    ".....r....r.....",
+]]
+CARRIER.append([r.replace("eYeYeYeYeYeYeYeY", "YeYeYeYeYeYeYeYe")
+                .replace("....YY....YY....", "....rr....rr....") for r in CARRIER[0]])
+
+MISSILES = {
+    "bomb": ["rr", "YY", "YY", "rr"],
+    "rock": [".ee.", "eyye", "eeye", ".ee."],
+    "boom0": ["...Y....", ".Y.oY.Y.", "..oroo..", "YoRwwroY", ".orwwRo.", "..ooro..", ".Y.Yo.Y.", "....Y..."],
+    "boom1": ["Y..o..Y.", "..R..o..", ".o....R.", "o..r...o", "...o..o.", ".R....o.", "..o..R..", "Y..R...Y"],
+    "cell": [".GG.", "GwwG", "GGGG", "GwwG", "GGGG", ".GG."],
+}
 
 SHOTS = {
     "shot_h": ["YwwY", "YwwY"],
@@ -168,6 +251,10 @@ def main(sheet_path, json_path):
     # Facing right, then the same frames facing left: frame + FACING_LEFT.
     frames = [(name + "_r", g) for name, g in right] + [(name + "_l", mirror(g)) for name, g in right]
     frames += [(f"drifter{i}", grid(d)) for i, d in enumerate(DRIFTER)]
+    for name, art in (("tracker", TRACKER), ("crawler", CRAWLER), ("thrower", THROWER),
+                      ("carrier", CARRIER)):
+        frames += [(f"{name}{i}", grid(a)) for i, a in enumerate(art)]
+    frames += [(name, grid(a)) for name, a in MISSILES.items()]
     frames += [(name, grid(g)) for name, g in SHOTS.items()]
     frames.append(("shot_dl", mirror(grid(SHOTS["shot_d"]))))
 

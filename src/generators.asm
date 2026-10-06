@@ -325,8 +325,13 @@ shield_gauge:
     cp (hl)
     ret z
     ld (hl),a
-    ld b,5
     ld hl,gauge_lines
+    ld c,GAUGE_BYTES
+
+; Draw a 5-line HUD bar: on each line at the addresses at HL, D bytes of
+; colour E, then up to C bytes of the empty colour.
+draw_bar:
+    ld b,5
 .line:
     push bc
     push hl
@@ -343,7 +348,7 @@ shield_gauge:
     inc l
     djnz .fill
 .empty:
-    ld a,GAUGE_BYTES
+    ld a,c
     sub d
     jr z,.done
     ld b,a

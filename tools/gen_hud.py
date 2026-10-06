@@ -76,8 +76,7 @@ def main(out):
 
     text(8, TOP + 27, "TIME 9:59", BYELLOW)
     text(76, TOP + 27, "ENERGY", BYELLOW)
-    rect(102, TOP + 27, 152, TOP + 32, GREEN)
-    rect(102, TOP + 27, 152, TOP + 28, BGREEN)
+    rect(102, TOP + 27, 152, TOP + 32, RADAR_BG)   # energy bar (src/enemies.asm)
     text(8, TOP + 39, "RUNNERS", BYELLOW)    # spare Runner icons follow (src/player.asm)
     # shield gauge of the generator in view (drawn by src/generators.asm)
     text(76, TOP + 39, "SHIELD", BYELLOW)

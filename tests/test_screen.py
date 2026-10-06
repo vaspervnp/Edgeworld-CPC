@@ -13,12 +13,12 @@ that the whole 200-line picture is exactly what it should be:
   The generator core pen takes the colour the game showed that frame;
 - lines 136-199: the HUD in its own palette, with the radar's view marker
   where the scroll position says, the spare Runner icons, the generators'
-  radar dots and the SHIELD gauge as the game's state says;
+  radar dots, the SHIELD gauge and the ENERGY bar as the game's state says;
 - the position advances one column every 2 frames (25 fps) with no late
   flips, the frame's work fits the budget, and the frame stays 312 lines;
 - the camera follows the Runner: standing still, riding right (once up to
   speed), skidding round to ride left, coasting to a stop, a lap of the
-  planet.
+  planet; enemies come and go meanwhile (the player cannot be hurt here).
 """
 import json
 import os
@@ -50,6 +50,7 @@ CORE_PEN = 2
 DOT_LINES = range(18, 22)           # radar dots of the generators
 GAUGE_LINES, GAUGE_X, GAUGE_BYTES = range(47, 52), 104, 24
 NUM_GENS, GEN_ENTRY = 4, 5
+ENERGY_LINES, ENERGY_X, ENERGY_BYTES = range(35, 40), 102, 25
 HUD_PEN_OF = {0xF0: 5, 0x3C: 6, 0xFC: 7, 0xC0: 1}  # HUD bytes the game writes
 
 
@@ -114,9 +115,15 @@ class Expected:
         return [bytes(self.colour(y, p) for p in row) for y, row in enumerate(pens)]
 
     def hud_line(self, y, pos, spares, gens):
-        """HUD line y; gens = (radar dot bytes, gauge byte) as the game shows."""
+        """HUD line y; gens = (radar dot bytes, gauge byte, energy byte) as
+        the game shows them."""
         line = bytearray(self.hud[y])
-        dots, gauge = gens
+        dots, gauge, energy = gens
+        if y in ENERGY_LINES:
+            n, colour = energy & 31, (5, 6, 7)[energy >> 5]
+            line[ENERGY_X:ENERGY_X + 2 * ENERGY_BYTES] = (
+                bytes([self.hud_pal[colour]]) * (2 * n)
+                + bytes([self.hud_pal[1]]) * (2 * (ENERGY_BYTES - n)))
         if y in DOT_LINES:
             for col, byte in zip(self.gen_cols, dots):
                 x = 2 * (8 + ((col + 1) >> 2))
@@ -186,7 +193,8 @@ class Screen:
         # so it may lag the picture by a column, and the spare Runners may be
         # caught as they change.
         spares = self.game.byte("PL_SPARES")
-        gens = (tuple(self.game.bytes("DOT_SHOWN", NUM_GENS)), self.game.byte("GAUGE_SHOWN"))
+        gens = (tuple(self.game.bytes("DOT_SHOWN", NUM_GENS)), self.game.byte("GAUGE_SHOWN"),
+                self.game.byte("ENERGY_SHOWN"))
         gen_options = {gens, self.last_gens or gens}
         self.last_gens = gens
         for y in range(HUD_H):
@@ -227,6 +235,7 @@ def run_phase(screen, pos, frames, expect_dir, settle=0, rhythm=True):
 
 def test_crtc(crtc_type):
     game = Game(crtc_type)
+    game.c.write_ram(game.sym["GOD_MODE"], b"\x01")
     screen = Screen(game)
     pos = screen.check(game.word("SCROLL_POS"))
     game.c.write_ram(game.sym["IDLE_MIN"], b"\xff\xff")   # ignore start-up

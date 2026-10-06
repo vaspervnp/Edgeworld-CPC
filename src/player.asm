@@ -91,6 +91,18 @@ player_init:
 
 ; One frame of the player: input, movement, bolts, camera (sets scroll_dir).
 player_update:
+    ld hl,pl_invuln
+    ld a,(hl)
+    or a
+    jr z,.hittable
+    dec (hl)
+.hittable:
+    ld a,(game_over)
+    or a
+    jr z,.alive
+    xor a                   ; game over: no more control
+    ld (joy_state),a
+.alive:
     ld a,(joy_state)
     ld c,a
     ld a,(joy_prev)
@@ -781,22 +793,28 @@ update_shots:
 
 ; Start this frame's list in the back buffer's list.
 list_begin:
-    ld ix,(back_list)
-    inc ix
+    ld hl,(back_list)
+    inc hl
+    ld (list_ptr),hl
     xor a
     ld (list_count),a
     ret
 
-; Append frame A at world x HL (pixels) and y C.
+; Append frame A at world x HL (pixels) and y C. Trashes A, DE, HL.
 list_add:
-    ld (ix+0),a
-    ld (ix+1),l
-    ld a,h
+    ex de,hl
+    ld hl,(list_ptr)
+    ld (hl),a
+    inc hl
+    ld (hl),e
+    inc hl
+    ld a,d
     and 3
-    ld (ix+2),a
-    ld (ix+3),c
-    ld de,REC_SIZE
-    add ix,de
+    ld (hl),a
+    inc hl
+    ld (hl),c
+    inc hl
+    ld (list_ptr),hl
     ld hl,list_count
     inc (hl)
     ret
@@ -808,6 +826,7 @@ list_end:
     ret
 
 ; Add the Runner, the rider (or both, mounted) and the bolts to the list.
+; After a hit the rider (or the mounted pair) flickers.
 player_sprites:
     ; the Runner on its own
     ld a,(rn_state)
@@ -834,6 +853,9 @@ player_sprites:
     ld a,b
     call list_add
 .rider:
+    ld a,(pl_invuln)
+    and 2
+    jp nz,.shots            ; flicker
     ld a,(pl_mode)
     cp MODE_FOOT
     jr z,.on_foot
@@ -1007,4 +1029,5 @@ rn_legs:    db 0
 joy_prev:   db 0
 joy_new:    db 0
 list_count: db 0
+list_ptr:   dw 0
 shots:      ds MAX_SHOTS*SHOT_SIZE

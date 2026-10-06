@@ -21,10 +21,12 @@ SCREEN_BYTES equ SCREEN_WORDS*2
     assert MAP_ROWS==PLAY_ROWS
 
 ; Draw map column (v & 255) at ring word (v & 1023) of one screen page.
+; Pages the map's RAM bank in for the while.
 ; in:  HL = v, A = page high byte (#C0 or #80)
 ; out: all registers except SP trashed (IY, IXH used)
 draw_column:
     ld (.page+1),a
+    PAGE MAP_BANK
     ; destination: page + ((v * 2) & #7FF), char row 0, line 0
     push hl
     add hl,hl
@@ -80,6 +82,7 @@ draw_column:
     ld d,a
     dec ixh
     jr nz,.row
+    PAGE RAM_BASE
     ret
 
 ; Fill both screen pages for scroll position HL and show the front one.
