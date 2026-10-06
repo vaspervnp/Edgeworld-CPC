@@ -1,8 +1,7 @@
-; Shieldrunner for the Amstrad CPC 6128.
-; Milestone 7: the first planet complete: title screen, high scores, the
-; countdown, winning and losing, music and sound effects, around the
-; player, the shield generators and the enemies on the scrolling planet
-; with its fixed HUD, raster sky and sprite engine.
+; Shieldrunner for the Amstrad CPC 6128, version 1.0.
+; Ride the Runner round four planets, shooting what comes and recharging
+; the shield generators until the time runs out. See README.md for how it
+; plays and how it works; this file has the start-up and the main loop.
 ;
 ; Controls (joystick or cursor keys, space = fire, W = whistle): see
 ; player.asm.
@@ -48,6 +47,7 @@ game_loop:
     call game_start
 main_loop:
     call read_input
+    call game_keys          ; M, and P: pause (and Esc there: give up)
     call player_update      ; also sets scroll_dir
     ; scroll_pos += scroll_dir (sign extended)
     ld a,(scroll_dir)

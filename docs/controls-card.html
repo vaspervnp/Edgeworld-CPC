@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shieldrunner controls card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  /* A printable card: two A5 panels side by side on A4 landscape: fold it in half. */
+  :root {
+    --ink: #1b1530;
+    --paper: #fffdf6;
+    --rule: #d8d0bf;
+    --accent: #c2410c;
+    --accent-2: #6d28d9;
+    --muted: #5b546b;
+    --key-bg: #f1ece0;
+  }
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9e4d8; color: var(--ink); }
+  body { font: 10pt/1.4 "IBM Plex Sans", system-ui, sans-serif; padding: 16px; }
+  .sheet {
+    display: grid; grid-template-columns: 1fr 1fr;
+    width: 297mm; max-width: 100%; margin: 0 auto;
+    background: var(--paper); box-shadow: 0 2px 12px rgb(0 0 0 / .15);
+  }
+  .panel { padding: 11mm 12mm 10mm; min-height: 210mm; }
+  .panel + .panel { border-left: 1px dashed var(--rule); }
+  h1 {
+    font: 21pt/1.1 "Press Start 2P", monospace; margin: 0 0 3mm;
+    background: linear-gradient(#f6f6f6 0 18%, #ffd400 18% 48%, #ff8a00 48% 76%, #e5002b 76%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-text-stroke: 0.4px #3b0a5a; letter-spacing: .5px;
+  }
+  .sub { font-size: 8pt; color: var(--muted); margin: 0 0 5mm; }
+  h2 {
+    font: 7pt/1.2 "Press Start 2P", monospace; color: var(--accent-2);
+    margin: 5mm 0 2mm; text-transform: uppercase;
+  }
+  p { margin: 0 0 2mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  th, td { text-align: left; vertical-align: top; padding: 1.2mm 1.5mm; border-bottom: 1px solid var(--rule); }
+  th { font-weight: 600; color: var(--muted); font-size: 7.5pt; }
+  td:first-child { white-space: nowrap; }
+  kbd {
+    display: inline-block; font: 600 7.5pt/1 "IBM Plex Sans", sans-serif;
+    padding: 1px 4px; border: 1px solid #bfb6a3; border-bottom-width: 2px;
+    border-radius: 3px; background: var(--key-bg);
+  }
+  ul { margin: 0; padding-left: 4mm; }
+  li { margin-bottom: 1.2mm; }
+  .planets td:nth-child(2) { color: var(--muted); }
+  .load {
+    font: 8pt/1.4 "Press Start 2P", monospace; background: #000080; color: #ffff00;
+    padding: 2.5mm 3mm; border-radius: 2px; margin: 1mm 0 2mm;
+  }
+  .foot { margin-top: 5mm; font-size: 7pt; color: var(--muted); }
+  .warn { color: var(--accent); font-weight: 600; }
+  @media print {
+    html, body { background: none; padding: 0; }
+    .sheet { box-shadow: none; width: 297mm; }
+  }
+  @media (max-width: 720px) {
+    body { padding: 0; }
+    .sheet { grid-template-columns: 1fr; }
+    .panel { min-height: 0; padding: 6mm 16px; }
+    .panel + .panel { border-left: 0; border-top: 1px dashed var(--rule); }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <section class="panel">
+    <h1>SHIELDRUNNER</h1>
+    <p class="sub">For the Amstrad CPC 6128 (or a CPC with 128K). Version 1.0.</p>
+
+    <h2>Loading</h2>
+    <div class="load">RUN"SHIELD</div>
+    <p>Leave the disc in: each planet loads from it as you reach it.</p>
+
+    <h2>The job</h2>
+    <p>Four shield generators stand round the rim of each planet, draining away.
+      Ride the Runner to them, get off and recharge them, and hold the shield
+      until the clock runs out. Three drained at once, and the shield fails.
+      Lose all your energy, and you fall.</p>
+
+    <h2>The radar</h2>
+    <ul>
+      <li><b>Green</b> generator: holding. <b>Flashing</b>: unstable, see to it.
+        <b>Red</b>: drained; enemies pour out of the breach.</li>
+      <li>Two red at once bring the <b>breach carrier</b>: twelve bolts to bring it down.</li>
+    </ul>
+
+    <h2>Tips</h2>
+    <ul>
+      <li>Jump crawlers when riding; on foot, shoot them.</li>
+      <li>A tracker hangs still just after it bombs: shoot straight up.</li>
+      <li>Throwers stop to lob rocks: walk at them and shoot.</li>
+      <li>Shot enemies sometimes leave an <b>energy cell</b>: touch it.</li>
+      <li>Hits on the Runner cost you little, but three kill it. Whistle for a spare.</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2>Controls</h2>
+    <p>Joystick, or cursor keys and <kbd>Space</kbd>.</p>
+    <table>
+      <tr><th>Input</th><th>Riding</th><th>On foot</th></tr>
+      <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Ride (it speeds up, skids round)</td><td>Walk</td></tr>
+      <tr><td><kbd>&uarr;</kbd></td><td>Jump</td><td>Aim up</td></tr>
+      <tr><td>Fire</td><td>Shoot forward</td><td>Shoot forward</td></tr>
+      <tr><td>Fire + <kbd>&uarr;</kbd></td><td>Shoot diagonally up</td><td>Shoot up (with <kbd>&larr;</kbd>/<kbd>&rarr;</kbd>: diagonally)</td></tr>
+      <tr><td>Fire + <kbd>&darr;</kbd></td><td>Get off</td><td>Get on, at the Runner</td></tr>
+      <tr><td><kbd>&darr;</kbd> held</td><td></td><td>Recharge, at a generator</td></tr>
+      <tr><td><kbd>W</kbd></td><td></td><td>Whistle for the Runner (or a spare)</td></tr>
+    </table>
+
+    <h2>Recharging</h2>
+    <p>Stand at a generator and hold <kbd>&darr;</kbd>: it charges slowly. Press fire
+      <b>while its core flashes white</b> to pump in a big boost; press at the wrong
+      time and it stalls for a second.</p>
+
+    <h2>Keys</h2>
+    <table>
+      <tr><td><kbd>P</kbd></td><td>Pause; <kbd>P</kbd> again goes on, <kbd>Esc</kbd> gives up the game</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Music off or on (sound effects stay)</td></tr>
+      <tr><td>High score</td><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> choose a letter, fire takes it</td></tr>
+    </table>
+
+    <h2>The planets</h2>
+    <table class="planets">
+      <tr><td>1 Ferros</td><td>rust moon</td><td>3:00</td></tr>
+      <tr><td>2 Glacis</td><td>ice world: trackers swarm</td><td>3:15</td></tr>
+      <tr><td>3 Mesa Ra</td><td>desert: crawlers and throwers</td><td>3:30</td></tr>
+      <tr><td>4 Pyre</td><td>volcanic: everything, fast drains</td><td>3:45</td></tr>
+    </table>
+    <p class="foot">Score and spare Runners carry over; energy is full on each planet.
+      Clearing a planet adds a bonus for the energy and charge left.
+      <span class="warn">The high-score table is not saved.</span></p>
+  </section>
+</div>
+</body>
+</html>

@@ -11,6 +11,7 @@ END_FRAMES   equ 125        ; the end message's game frames before the high scor
 END_ENERGY   equ 1          ; game_over: the rider's energy ran out (enemies.asm)
 END_SHIELD   equ 2          ; every generator drained
 END_CLEAR    equ 3          ; the time ran out with the shield up
+END_QUIT     equ 4          ; given up (Esc in the pause)
 
 ST_BOOT      equ 0          ; game_state, for tests
 ST_TITLE     equ 1
@@ -195,6 +196,97 @@ game_tick:
 .over:
     or 1
     ret
+
+; M turns the music off or on; P pauses: the picture holds, the sound
+; stops, a message takes the HUD's text rows; P again goes on, Esc gives
+; the game up (it ends at once, as if lost).
+game_keys:
+    call music_key
+    ld a,(keys_new)
+    bit IN_PAUSE,a
+    ret z
+    ld a,(end_timer)        ; not once the game is over
+    or a
+    ret nz
+    ld a,1
+    ld (sound_paused),a
+    ld a,ROW_A_LINE-2
+    ld b,ROW_C_LINE+7-(ROW_A_LINE-2)
+    call hud_clear
+    ld hl,pause_text
+    call text_lines
+.wait:
+    call wait_frame
+    call read_input
+    call music_key
+    ld a,(esc_down)
+    or a
+    jr nz,.give_up
+    ld a,(keys_new)
+    bit IN_PAUSE,a
+    jr z,.wait
+    call .resume
+    xor a
+    ld (joy_state),a        ; P is not a game key
+    ret
+.give_up:
+    call .resume
+    ld a,END_QUIT
+    ld (game_over),a
+    ld a,1                  ; game_tick ends the game on the next frame
+    ld (end_timer),a
+    ret
+.resume:
+    call hud_refresh
+    xor a
+    ld (sound_paused),a
+    ld (frames_since_flip),a    ; the pause is not a late frame
+    ret
+
+; keys_new = the keys just pressed (joy_state against the last call);
+; M turns the music off or on. Trashes A, B, HL.
+music_key:
+    ld a,(joy_state)
+    ld hl,keys_prev
+    ld b,(hl)
+    ld (hl),a
+    ld l,a
+    ld a,b
+    cpl
+    and l
+    ld (keys_new),a
+    bit IN_MUSIC,a
+    ret z
+    ld a,(music_on)
+    xor 1
+    ld (music_on),a
+    ret
+
+; Draw the whole HUD again, everything in it as it is now.
+hud_refresh:
+    call hud_init
+    call hud_spares
+    call draw_time
+    call draw_planet
+    ld hl,#FFFF
+    ld (score_shown),hl
+    call draw_score
+    ld a,#FF                ; the bars, gauge and radar dots: next frame
+    ld (energy_shown),a
+    ld (gauge_shown),a
+    ld hl,dot_shown
+    ld b,NUM_GENS
+.dot:
+    ld (hl),a
+    inc hl
+    djnz .dot
+    ret
+
+pause_text:
+    db ROW_A_LINE, PEN_LABEL, "PAUSED",0
+    db ROW_B_LINE, PEN_DIGITS, "P GOES ON, ESC GIVES UP",0
+    db ROW_C_LINE, PEN_DIM, "M TURNS THE MUSIC OFF OR ON",0
+    db #FF
 
 ; The planet's number after "PLANET ".
 draw_planet:
@@ -418,4 +510,6 @@ bonus:       dw 0
 game_state:  db ST_BOOT
 planet_num:  db 1           ; the planet being played, 1 on
 first_planet: db 1          ; where a game starts (tests start elsewhere)
+keys_prev:   db 0
+keys_new:    db 0           ; keys just pressed (music_key)
 line_buf:    ds 41

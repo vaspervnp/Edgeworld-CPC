@@ -303,7 +303,8 @@ read_kb_line:
 
 ; Collect joystick 0 and the keys into joy_state (1 = pressed): bit 0 up,
 ; 1 down, 2 left, 3 right (joystick or cursor keys), 4 fire (either
-; joystick button or space), 5 whistle (W).
+; joystick button or space), 5 whistle (W), 6 pause (P), 7 music (M);
+; Esc into esc_down (non-zero when down).
 read_input:
     ld a,1
     ld (psg_busy),a         ; the sound interrupt keeps off the PSG meanwhile
@@ -351,6 +352,23 @@ read_input:
     jr nz,.no_whistle
     set 5,e
 .no_whistle:
+    ld a,KB_LINE_P
+    call read_kb_line
+    bit 3,a
+    jr nz,.no_pause
+    set 6,e
+.no_pause:
+    ld a,KB_LINE_M
+    call read_kb_line
+    bit 6,a
+    jr nz,.no_music
+    set 7,e
+.no_music:
+    ld a,KB_LINE_ESC
+    call read_kb_line
+    cpl
+    and 4
+    ld (esc_down),a
     ld a,e
     ld (joy_state),a
     xor a
@@ -437,6 +455,7 @@ pf_crtc:           dw 0     ; playfield address for the next frame A
 idle_last:         dw 0     ; idle loop turns before the last flip
 idle_min:          dw #FFFF ; the fewest seen
 joy_state:         db 0
+esc_down:          db 0
 pf_pal_src:        dw black_pal+1   ; pens 1-15 the interrupts load
 hud_pal_src:       dw black_pal+1
 screen_is_off:     db 1             ; off until the first planet is in

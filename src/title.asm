@@ -46,6 +46,7 @@ title_screen:
 .frame:
     call wait_frame
     call read_input
+    call music_key
     ld a,(joy_state)
     and 1<<IN_FIRE
     ld hl,fire_prev
@@ -372,11 +373,12 @@ draw_name:
 NAME_LINE equ 34
 
 how_to_play:
-    db 12, PEN_LABEL, "KEEP THE FOUR SHIELD GENERATORS",0
-    db 18, PEN_LABEL, "CHARGED UNTIL THE TIME RUNS OUT",0
-    db 26, PEN_DIGITS, "JOYSTICK OR CURSOR KEYS, SPACE FIRES",0
-    db 33, PEN_DIGITS, "FIRE+DOWN GETS OFF AND ON, W WHISTLES",0
-    db 40, PEN_GOOD, "HOLD DOWN AT A GENERATOR TO CHARGE",0
+    db 11, PEN_LABEL, "KEEP THE FOUR SHIELD GENERATORS",0
+    db 17, PEN_LABEL, "CHARGED UNTIL THE TIME RUNS OUT",0
+    db 24, PEN_DIGITS, "JOYSTICK OR CURSOR KEYS, SPACE FIRES",0
+    db 30, PEN_DIGITS, "FIRE+DOWN GETS OFF AND ON, W WHISTLES",0
+    db 36, PEN_GOOD, "HOLD DOWN AT A GENERATOR TO CHARGE",0
+    db 43, PEN_DIM, "P PAUSES, M TURNS THE MUSIC OFF",0
     db #FF
 hs_title:
     db 12, PEN_LABEL, "HIGH SCORES",0

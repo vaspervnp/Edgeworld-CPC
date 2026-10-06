@@ -75,7 +75,7 @@ def test():
 
     # Title: the how-to-play page, PRESS FIRE flashing, the title music.
     assert f.state() == ST_TITLE
-    f.wait_text(12, "KEEP THE FOUR SHIELD GENERATORS", PEN_LABEL)
+    f.wait_text(11, "KEEP THE FOUR SHIELD GENERATORS", PEN_LABEL)
     f.wait_text(50, "PRESS FIRE TO START", PEN_LABEL)
     volumes = set()
     for _ in range(50):
@@ -113,6 +113,34 @@ def test():
     assert shot, "no shot sound on channel C"
     print("countdown, score and shot sound: ok")
 
+    # P pauses: time stands, the sound stops, the HUD says so; P goes on with
+    # the HUD whole again and no frame counted late.
+    f.press("p")
+    assert g.byte("SOUND_PAUSED") == 1
+    f.wait_text(33, "PAUSED", PEN_LABEL)
+    secs = g.word("TIME_SECS")
+    f.frames(100)
+    regs = c.psg_regs()
+    assert g.word("TIME_SECS") == secs and regs[R_VOL_A] == regs[R_VOL_A + 1] == regs[R_VOL_C] == 0
+    f.press("p")
+    assert g.byte("SOUND_PAUSED") == 0
+    screen = Screen(g)
+    pos = screen.check(g.word("SCROLL_POS"))
+    for _ in range(60):
+        g.next_frame()
+        pos = screen.check(pos)
+    assert g.word("TIME_SECS") < secs
+    # M: the music off (effects stay), then on again
+    f.press("m")
+    assert g.byte("MUSIC_ON") == 0
+    f.frames(10)
+    regs = c.psg_regs()
+    assert regs[R_VOL_A] == regs[R_VOL_A + 1] == 0
+    f.press("m")
+    assert g.byte("MUSIC_ON") == 1
+    assert g.word("LATE_FLIPS") == 0, "the pause made a late frame"
+    print("pause and music off: ok")
+
     # The time runs out with the shield up: planet clear, the enemies blow
     # up, a bonus of the energy plus a quarter of the charge.
     g.c.write_ram(g.sym["SPAWN_ON"], b"\x00")
@@ -125,6 +153,7 @@ def test():
         if g.byte("GAME_OVER"):
             break
     assert g.byte("GAME_OVER") == GAME_OVER_CLEAR
+    f.frames(2)                 # the bonus is added in the same game frame
     charge = g.bytes("GEN_CHARGE", 2 * NUM_GENS)
     bonus = g.byte("PL_ENERGY") + sum(charge[1::2]) // 4
     assert abs(g.word("BONUS") - bonus) <= 1, (g.word("BONUS"), bonus)
@@ -192,6 +221,16 @@ def test():
     assert g.byte("HS_NEW") == 0xFF
     assert g.word("LATE_FLIPS") == 0, "late flips"
     print("shield down, back to the title: ok")
+
+    # Esc in the pause gives the game up: back to the title.
+    g.start()
+    f.press("p")
+    c.key_down(cpc.KEY_ESC)
+    f.frames(6)
+    c.key_up(cpc.KEY_ESC)
+    assert g.byte("GAME_OVER") == 4
+    g.wait_state(ST_TITLE, 400)
+    print("giving up from the pause: ok")
     print("game: ok, no late flips")
 
 

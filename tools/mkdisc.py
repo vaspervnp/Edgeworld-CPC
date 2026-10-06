@@ -10,6 +10,9 @@ them filled.
 The other files (the planets) go on the disc as they are: the game loads
 them itself, with its own disc code, since the firmware is gone by then.
 
+It also says what is loading, and stops with a message on a machine
+without the extra 64K. The version shown comes from $VERSION.
+
 Usage: mkdisc.py out.dsk game.bin NAME=file ...
   BANK4=..., BANK5=..., BANK6=...: loaded into that extra bank by SHIELD.BAS
   any other NAME=file: written as NAME.BIN   (needs iDSK on the PATH)
@@ -34,8 +37,19 @@ def main():
     shutil.rmtree(stage, ignore_errors=True)
     os.makedirs(stage)
 
-    lines = ["10 MEMORY &3FFF:MODE 0:BORDER 0:INK 0,0"]
-    n = 20
+    version = os.environ.get("VERSION", "dev")
+    lines = [
+        "10 MODE 1:BORDER 0:INK 0,0:INK 1,24:INK 2,20:INK 3,6:PAPER 0:PEN 1",
+        "20 MEMORY &3FFF",
+        # the extra 64K: a byte written with bank 4 paged in must not land in
+        # base RAM (on a 64K machine the paging does nothing)
+        "30 OUT &7F00,&C0:POKE &4000,0:OUT &7F00,&C4:POKE &4000,170:OUT &7F00,&C0",
+        '40 IF PEEK(&4000)=170 THEN LOCATE 5,10:PRINT "Shieldrunner needs a CPC 6128,":'
+        'LOCATE 5,11:PRINT "or a CPC with 64K more memory.":END',
+        f'50 LOCATE 9,9:PEN 1:PRINT "S H I E L D R U N N E R":LOCATE 15,11:PEN 2:'
+        f'PRINT "version {version}":LOCATE 16,15:PEN 3:PRINT "Loading..."',
+    ]
+    n = 60
     for name in sorted(files):
         m = re.fullmatch(r"BANK([4-7])", name)
         if m:

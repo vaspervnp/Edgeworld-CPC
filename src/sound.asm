@@ -70,6 +70,18 @@ sfx_play:
 
 ; One 50 Hz tick, from the interrupt (AF, BC and HL are saved there).
 sound_tick:
+    ld a,(sound_paused)     ; paused: silent, and nothing moves on
+    or a
+    jr z,.going
+    xor a
+    ld (psg_shadow+8),a
+    ld (psg_shadow+9),a
+    ld (psg_shadow+10),a
+    ld a,(psg_busy)
+    or a
+    ret nz
+    jp psg_write
+.going:
     push de
     push ix
     ld a,(music_req)
@@ -90,6 +102,13 @@ sound_tick:
     call chan_tick
     ld (psg_shadow+4),hl
     ld (psg_shadow+10),a
+    ld a,(music_on)         ; music off: it goes on in silence
+    or a
+    jr nz,.music
+    ld (psg_shadow+8),a
+    ld (psg_shadow+9),a
+    ld (psg_shadow+10),a
+.music:
     ld a,MIXER_TONES
     ld (psg_shadow+7),a
     call fx_step
@@ -332,3 +351,5 @@ sfx_req:    db 0
 sfx_ptr:    dw 0
 sfx_prio:   db 0
 psg_busy:   db 0            ; the main code is reading the keyboard
+music_on:   db 1            ; M turns the music off and on (effects stay)
+sound_paused: db 0          ; the game is paused

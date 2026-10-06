@@ -1,4 +1,6 @@
 PYTHON ?= python3
+VERSION := 1.0
+export VERSION
 RASM   ?= rasm
 IDSK   ?= iDSK
 
@@ -6,7 +8,7 @@ BUILD  := build
 SRC    := $(wildcard src/*.asm)
 DSK    := $(BUILD)/shield.dsk
 
-.PHONY: all clean test planet-art
+.PHONY: all clean test planet-art release
 
 all: $(DSK) planet-art
 
@@ -81,3 +83,7 @@ test: $(DSK) planet-art
 
 clean:
 	rm -rf $(BUILD)
+
+release: $(DSK)
+	mkdir -p release
+	cp $(DSK) release/shieldrunner-$(VERSION).dsk

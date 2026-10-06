@@ -1,64 +1,74 @@
-# Shieldrunner (Edgeworld-CPC)
+# Shieldrunner
 
-A horizontally scrolling "patrol and recharge" shooter for the Amstrad CPC 6128,
-inspired by Palace Software's *Rimrunner* (C64, 1988). You ride a fast mount
-around the rim of a dead planet, shoot intruders and dismount to recharge the
-shield generators before they fail. The game keeps the original's loop and
-adds what reviewers said it lacked: route decisions, risk when you dismount
-and a different enemy mix on each planet.
+**A patrol-and-recharge shooter for the Amstrad CPC 6128.** Ride a fast,
+two-legged Runner around the rim of a dying planet, shoot what comes for
+you, and get off to recharge the four shield generators before they fail.
+Hold the shield until the clock runs out, on four planets.
 
-This is an original game. The name, characters, art and music are new, and
-nothing from Rimrunner or Palace is reused. The full design and technical plan
-is in [plan.md](plan.md).
+Inspired by Palace Software's *Rimrunner* (C64, 1988), whose loop it keeps,
+with what reviewers said it lacked: decisions about which generator to save
+first, risk when you get off, a mini-boss when things go wrong, and a
+different world and enemy mix on each planet. It is an original game: the
+name, characters, art and music are new, and nothing from Rimrunner or
+Palace is reused.
 
-## Status
+![The title screen](docs/title.png)
 
-| # | Milestone | State |
-|---|-----------|-------|
-| 1 | Scroll engine: firmware off, Mode 0, double buffer, CRTC hardware scroll over a wrap-around map | **Done** |
-| 2 | HUD split and rasters: fixed HUD via CRTC split, raster sky, separate HUD palette | **Done** |
-| 3 | Sprite engine: masked, pre-shifted sprites, tile restore, foreground layer; Runner + 8 enemies at 25 fps | **Done** |
-| 4 | Player: riding, jumping, shooting, dismount/mount, whistle; compiled sprites in extra RAM | **Done** |
-| 5 | Generators and radar: drain, unstable/drained states, breaches, recharge minigame | **Done** |
-| 6 | Enemies: drifters, trackers, crawlers, throwers, breach carrier; collisions and energy | **Done** |
-| 7 | First planet complete: timer, win/lose, title, high scores, music and sound effects; playtest bots | **Done** |
-| 8 | Banking and loading: planets in extra RAM, loaded from disc by the game's own floppy code | **Done** |
-| 9 | Planets 2-4: four worlds with their own art, palettes and enemy mixes; difficulty curve | **Done** |
-| 10 | Release | Next |
+![The four planets](docs/planets.png)
 
-The title screen shows the logo over the first planet, how to play and the
-high-score table. You ride the Runner around the 1024-pixel planet, jump,
-shoot, get off, walk, whistle the Runner over and climb back on, and you
-have **three minutes** (on the first planet) to hold the shield:
-keep its four generators charged until the time runs out. Each drains at
-its own rate; the radar shows them green (stable), flashing (unstable) or
-red (drained, letting a breach in), and the core of the one in view does the
-same. To recharge one, get off, stand at it and hold down: it charges
-slowly, and fire pressed while its core flashes white pumps in a big boost,
-but pressed at the wrong time stalls it for a second.
+**Version 1.0.** Disc image: [`release/shieldrunner-1.0.dsk`](release/shieldrunner-1.0.dsk).
+Controls card to print: [`docs/controls-card.html`](docs/controls-card.html)
+(A4 landscape, fold in half).
 
-Enemies come in from the edges of the view: drifters that float at you and
-explode on contact, trackers that sweep overhead dropping bombs (they hang
-still for a moment after each bomb: shoot straight up), crawlers that walk
-the ground (jump them, or shoot them on foot), and throwers that lob rocks
-in an arc. When a generator drains, a wave pours out of the breach; with
-two drained, the breach carrier arrives, a big ship that takes 12 bolts and
-bombs from above. Mounted, hits fall on the Runner: three and it dies,
-throwing the rider off. On foot every hit costs energy; one shot enemy in
-three leaves an energy cell that gives some back.
+## Playing
 
-The game ends when the rider's energy runs out, when three generators are
-drained at once (the shield fails), or when the time runs out with the
-shield up: the planet is clear, and the energy left and the generators'
-charge make a bonus. A good score goes into the high-score table with your
-initials. Music plays on the title and in the game, with jingles for
-winning and losing and sound effects on the third channel. Everything
-holds 25 fps with every frame inside budget.
+You need a CPC 6128, a 6128 Plus, or a CPC with 64K of extra memory (the
+loader says so and stops on a 64K machine), or an emulator such as
+Caprice32, WinAPE or ACE-DL. Put the disc in and type:
 
-Clearing a planet takes you to the next, loaded from disc meanwhile, with
-your score and spare Runners and a full energy bar; clearing the fourth
-ends the game. Each planet brings its own skyline, ground, props,
-foreground, colours, sky, time, generator drain rates and enemy mix:
+```
+RUN"SHIELD
+```
+
+Leave the disc in: each planet loads from it when you reach it. Press fire
+on the title screen to start.
+
+**The job.** Four shield generators stand round the planet, each draining at
+its own rate. The radar shows them green (holding), flashing (unstable)
+or red (drained: a wave of enemies pours out of the breach, and with two
+red the breach carrier comes, twelve bolts to bring down). Three drained
+at once and the shield fails; lose all your energy and you fall. To
+recharge a generator, get off, stand at it and hold down: it charges
+slowly, and fire pressed while its core flashes white pumps in a big
+boost, but pressed at the wrong time stalls it for a second.
+
+Enemies: drifters float at you and explode; trackers sweep overhead
+dropping bombs (and hang still for a moment after each: shoot straight
+up); crawlers walk the ground (jump them, or shoot them on foot); throwers
+walk in and lob rocks. Riding, hits fall on the Runner, which takes three
+before it dies and throws you off: whistle for a spare. On foot every hit
+costs energy. Shot enemies sometimes leave an energy cell.
+
+Controls: joystick, or cursor keys with space to fire.
+
+| Input | Riding | On foot |
+|-------|--------|---------|
+| Left / Right | Ride (the Runner speeds up, skids round to turn, coasts to a stop) | Walk (the screen does not scroll) |
+| Up | Jump | Aim up |
+| Fire | Shoot forward | Shoot forward |
+| Fire + Up | Shoot diagonally up | Shoot straight up, or diagonally with Left / Right |
+| Fire + Down | Get off | Get on (standing at the Runner) |
+| Down (held) | | Recharge, at a generator; fire while its core flashes white to pump |
+| W | | Whistle: the Runner runs over, or a spare comes in if it is gone |
+| P | Pause; P again goes on, Esc gives up the game | |
+| M | Music off or on (the sound effects stay) | |
+
+For the high-score table, up and down choose a letter and fire takes it.
+The table is not saved to disc.
+
+**The planets.** Clearing one takes you to the next with your score and
+spare Runners, and a full energy bar; the energy and charge left make a
+bonus. Clearing the fourth ends the game.
 
 | # | Planet | Look | Enemies | Time | Drain (per frame, all 4) |
 |---|--------|------|---------|------|--------------------------|
@@ -71,9 +81,28 @@ Difficulty rises mostly with the drain rates, lower starting charges and
 longer timers; enemies come a little faster each planet, never more than
 three at once besides breach waves and the carrier.
 
-![The title screen](docs/title.png)
+## Status
 
-![The four planets](docs/planets.png)
+Complete: all ten milestones of [plan.md](plan.md) are done.
+
+| # | Milestone |
+|---|-----------|
+| 1 | Scroll engine: firmware off, Mode 0, double buffer, CRTC hardware scroll over a wrap-around map |
+| 2 | HUD split and rasters: fixed HUD via CRTC split, raster sky, separate HUD palette |
+| 3 | Sprite engine: masked, pre-shifted sprites, tile restore, foreground layer; Runner + 8 enemies at 25 fps |
+| 4 | Player: riding, jumping, shooting, dismount/mount, whistle; compiled sprites in extra RAM |
+| 5 | Generators and radar: drain, unstable/drained states, breaches, recharge minigame |
+| 6 | Enemies: drifters, trackers, crawlers, throwers, breach carrier; collisions and energy |
+| 7 | First planet complete: timer, win/lose, title, high scores, music and sound effects; playtest bots |
+| 8 | Banking and loading: planets in extra RAM, loaded from disc by the game's own floppy code |
+| 9 | Planets 2-4: four worlds with their own art, palettes and enemy mixes; difficulty curve |
+| 10 | Release: final disc, loader with a memory check, pause and music keys, controls card, tested in a second emulator |
+
+It has not been run on real hardware. Besides the headless emulator the
+tests use, it was run in Caprice32 (`tools/cap32_smoke.py`), whose CRTC,
+gate array and floppy controller emulation are its own (the floppy with
+real timing), on a CPC 6128 and a 6128 Plus; a 464 with 64K got the
+loader's message, as it should.
 
 ## Building
 
@@ -88,36 +117,14 @@ You need:
 make
 ```
 
-This generates the planet, sprite, HUD and logo art and the music, converts
-them, compiles the sprites, assembles the game and writes `build/shield.dsk`.
+This draws the planets, sprites, HUD and logo, writes the music, converts
+them, compiles the sprites, packs the planets, assembles the game and
+writes `build/shield.dsk`. `make release` copies it to
+`release/shieldrunner-$(VERSION).dsk`.
 
-## Running
-
-Load `build/shield.dsk` in a CPC 6128 emulator (Caprice32, WinAPE, ACE-DL) or
-on a real machine and type:
-
-```
-RUN"SHIELD
-```
-
-`SHIELD.BAS` loads the sprites and the logo into the 6128's extra 64K, then
-runs `GAME.BIN`, which loads the planets itself (`PLANET1.BIN`, ...) as they
-are played, so leave the disc in. A CPC 6128 (or 464 with 64K expansion)
-is needed. Press fire on the title screen to start.
-
-Controls (joystick, or cursor keys with space to fire):
-
-| Input | Mounted | On foot |
-|-------|---------|---------|
-| Left / Right | Ride (the Runner speeds up, skids round to turn, coasts to a stop) | Walk (slowly; the screen does not scroll) |
-| Up | Jump | Aim up |
-| Fire | Shoot forward | Shoot forward |
-| Fire + Up | Shoot diagonally up | Shoot straight up, or diagonally with Left / Right |
-| Fire + Down | Get off | Get on (standing at the Runner) |
-| Down | | Hold at a generator to recharge it; Fire while its core flashes white to pump |
-| W | | Whistle: the Runner runs over, or a spare comes in if it is gone |
-
-For the high-score table, up and down choose a letter and fire takes it.
+The disc holds `SHIELD.BAS` (the loader: it checks for the extra 64K, loads
+the sprites and the logo into it and runs `GAME.BIN`), `BANK4-6.BIN`,
+`GAME.BIN` and `PLANET1-4.BIN`, which the game loads itself.
 
 ## Testing
 
@@ -212,6 +219,10 @@ Other tools:
   (currently median 21.8K, worst 26.5K).
 - `tests/calibrate_rasters.py` shows where raster colour changes land in the
   scanline; it was used to tune the delays in `src/system.asm`.
+- `tools/cap32_smoke.py` boots the disc in Caprice32 (the snap), screenshots
+  the title and the game a while after pressing fire, and quits: a second
+  opinion from an emulator with its own hardware emulation. Models: 6128,
+  6128 Plus, 464; RAM 128K or 64K.
 
 ## How it works
 
@@ -436,6 +447,9 @@ palette, plus the foreground overlays from a second mask image;
 | `tests/playtest.py` | Bots that play whole games: the "rolling demo" check and difficulty |
 | `tests/profile.py` | Sampling profiler and per-frame work measurement |
 | `tests/harness.py` | Boots the disc in the headless emulator |
+| `tools/cap32_smoke.py` | Smoke test in Caprice32 |
+| `docs/controls-card.html` | The printable controls card |
+| `release/` | The released disc images |
 | `assets/` | Source art |
 
 ### Memory map (current)

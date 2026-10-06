@@ -21,4 +21,7 @@ KB_LINE_CURSOR1 equ 0       ; bit0 up, bit1 right, bit2 down
 KB_LINE_CURSOR2 equ 1       ; bit0 left
 KB_LINE_SPACE   equ 5       ; bit7 space
 KB_LINE_W       equ 7       ; bit3 W
+KB_LINE_P       equ 3       ; bit3 P
+KB_LINE_M       equ 4       ; bit6 M
+KB_LINE_ESC     equ 8       ; bit2 Esc
 KB_LINE_JOY0    equ 9       ; bit0 up, 1 down, 2 left, 3 right, 4 and 5 fire

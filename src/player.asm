@@ -64,6 +64,8 @@ IN_LEFT  equ 2
 IN_RIGHT equ 3
 IN_FIRE  equ 4
 IN_WHISTLE equ 5
+IN_PAUSE equ 6              ; P
+IN_MUSIC equ 7              ; M (Esc goes into esc_down)
 
 ; HL (eighths of a pixel) -> HL (pixels).
 macro TO_PIXELS
