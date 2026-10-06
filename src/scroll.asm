@@ -1,6 +1,6 @@
 ; Hardware scroll engine.
 ;
-; The visible screen is 40 CRTC words (80 bytes, 160 Mode 0 pixels) by 25
+; The playfield is 40 CRTC words (80 bytes, 160 Mode 0 pixels) by PLAY_ROWS
 ; character rows. Each 2K line block of a 16K screen page is a ring of 1024
 ; words that the CRTC start address (R12/R13) can begin anywhere in, so
 ; moving the start address by one word scrolls the picture by 4 pixels; only
@@ -18,7 +18,7 @@ SCREEN_WORDS equ 40         ; visible width in CRTC words
 SCREEN_BYTES equ SCREEN_WORDS*2
 
     assert MAP_COLS==256
-    assert MAP_ROWS==25
+    assert MAP_ROWS==PLAY_ROWS
 
 ; Draw map column (v & 255) at ring word (v & 1023) of one screen page.
 ; in:  HL = v, A = page high byte (#C0 or #80)
@@ -35,18 +35,12 @@ draw_column:
     ld d,a
     ld e,l
     pop hl
-    ; map pointer: MAP + (v & 255) * 25
-    ld h,0
-    ld b,h
-    ld c,l
-    add hl,hl           ; *2
-    add hl,bc           ; *3
-    add hl,hl           ; *6
-    add hl,hl           ; *12
-    add hl,hl           ; *24
-    add hl,bc           ; *25
-    ld bc,map_data
-    add hl,bc
+    ; map pointer: col_ptrs[v & 255] (low bytes, then high bytes 256 on)
+    ld h,col_ptrs>>8
+    ld a,(hl)
+    inc h
+    ld h,(hl)
+    ld l,a
     push hl
     pop iy
     ld a,(.page+1)
@@ -116,16 +110,8 @@ scroll_init:
     ld hl,(front_pos)
     ld a,(front_r12)
     call crtc_addr
-    ld bc,CRTC_SEL*256+12
-    out (c),c
-    inc b
-    out (c),d
-    dec b
-    inc c
-    out (c),c
-    inc b
-    out (c),e
-    ret
+    ld (pf_crtc),de
+    jp crtc_init
 
 ; Draw all 40 visible columns of position (scroll_pos) into page A.
 fill_page:
@@ -203,6 +189,20 @@ swap_buffers:
     inc de
     djnz .swap
     ret
+
+; Start of each map column: low bytes, then high bytes.
+    align 256
+col_ptrs:
+col=0
+    repeat 256
+    db (map_data+col*MAP_ROWS)&#FF
+col=col+1
+    rend
+col=0
+    repeat 256
+    db (map_data+col*MAP_ROWS)>>8
+col=col+1
+    rend
 
 scroll_pos: dw 0            ; position to show next
 scroll_dir: db 1            ; columns per displayed frame: -1, 0 or 1

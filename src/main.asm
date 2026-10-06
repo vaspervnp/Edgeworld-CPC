@@ -1,5 +1,6 @@
 ; Shieldrunner for the Amstrad CPC 6128.
-; Milestone 1: scroll engine test over a wrap-around planet.
+; Milestone 2: scrolling playfield over a wrap-around planet, with a fixed
+; HUD below it (CRTC split), a raster sky and a separate HUD palette.
 ;
 ; Controls: left/right (joystick or cursor keys) pick the scroll direction,
 ; down stops. It scrolls right on its own until told otherwise.
@@ -27,10 +28,14 @@ start:
     ld hl,isr
     ld (#0039),hl
     im 1
-    ld hl,palette_data
+    ld hl,pf_palette
     call set_palette
+    call hud_init
     ld hl,0
     call scroll_init
+    call hud_update
+    ld a,1
+    ld (split_on),a
     ei
 
 main_loop:
@@ -65,18 +70,24 @@ main_loop:
     call scroll_update_back
     call flip_and_wait
     call swap_buffers
+    call hud_update
     jr main_loop
 
-    include "scroll.asm"
     include "system.asm"
+    include "scroll.asm"
+    include "hud.asm"
 
     align 16
 tile_data:
     incbin "../build/testplanet.tiles"
 map_data:
     incbin "../build/testplanet.map"
-palette_data:
+pf_palette:
     incbin "../build/testplanet.pal"
+hud_palette:
+    incbin "../build/hud.pal"
+hud_data:
+    incbin "../build/hud.scr"
 end_of_program:
 
     assert end_of_program <= #4000

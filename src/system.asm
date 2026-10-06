@@ -1,12 +1,85 @@
-; Interrupts, frame flipping and input, with the firmware switched off.
+; Interrupts, CRTC split, rasters, frame flipping and input, with the
+; firmware switched off.
 ;
-; The gate array interrupts 6 times per frame (300 Hz); the one that lands
-; during VSYNC starts a new frame. Flips happen there: when the main loop
-; has queued a buffer and at least 2 frames have passed since the last flip,
-; the handler writes R12/R13, which the CRTC picks up at the next frame start
-; on every CRTC type. That locks the game to 25 fps.
+; The gate array interrupts 6 times per frame (300 Hz), every 52 lines,
+; locked to VSYNC. Counting lines from the first playfield line, they land on
+; lines 242 (during VSYNC, index 0), 294, 34, 86, 138 and 190.
+;
+; Each 312-line frame is cut into two CRTC frames (a "rupture"):
+;
+;   frame A  rows 0-17   lines   0-143  scrolling playfield (double buffered)
+;   frame B  rows 0-20   lines 144-311  HUD (7 rows), border, VSYNC at row 12
+;
+; so VSYNC stays at absolute row 30 and the frame stays 312 lines long. The
+; interrupts rewrite R4 (rows in frame), R6 (rows shown), R7 (VSYNC row) and
+; R12/R13 (start address) for the frame to come. Each write is made while
+; the row counter is past the value written, so no comparison fires early,
+; and R12/R13 are never written on row 0, where CRTC 1 reloads them:
+;
+;   index 1 (B row 18): R6 = 25, R7 = 30 (never reached in A), R12/R13 = playfield
+;   index 3 (A row 10): R4 = 17, R6 = 7
+;   index 4 (A row 17): R7 = 12, R12/R13 = HUD
+;   index 5 (B row 5):  R4 = 20
+;
+; Rasters: the sky pen changes colour on lines 34 and 86 and the HUD palette
+; is switched in at line 144, all timed to land in the horizontal blank. The
+; HUD's first 4 lines use pen 0 only, so the palette load may run into them.
+; The VSYNC interrupt puts the playfield palette back.
+;
+; Flips: when the main loop has queued a buffer and at least 2 frames have
+; passed since the last flip, the VSYNC interrupt takes its address, and
+; index 1 hands it to the CRTC for the next frame. That locks the game to
+; 25 fps.
 
 INTS_PER_FRAME equ 6
+INT_UNSYNCED   equ 6        ; int_idx value until the first VSYNC is seen
+
+PLAY_ROWS   equ 18
+HUD_ROWS    equ 7
+TOTAL_ROWS  equ 39
+VSYNC_ROW   equ 30
+
+R4_A equ PLAY_ROWS-1
+R4_B equ TOTAL_ROWS-PLAY_ROWS-1
+R6_A equ 25
+R6_B equ HUD_ROWS
+R7_A equ 30
+R7_B equ VSYNC_ROW-PLAY_ROWS
+
+HUD_R12 equ #10             ; page #4000, offset 0
+HUD_R13 equ 0
+
+SKY_PEN equ 1
+
+; Delays (in NOPs) that put each raster change in the horizontal blank,
+; measured with tests/calibrate_rasters.py. With no delay the sky change
+; lands 14 us into the line after the interrupt's; 38 more puts it at 52 us,
+; mid-blank (the picture is 0-40 us), so the new colour starts on lines 36
+; and 88, with 6 us of margin either way for interrupt latency.
+;
+; The HUD handler reaches its first palette write 49 NOPs later in the code,
+; i.e. at 63 us on line 139. Its 15 writes take 182 us and must all fall
+; between the end of line 143's picture and the start of HUD line 4 (line
+; 148): an 85 us window for the first write. 275 more puts it at 18 us on
+; line 144, about 42 us from either edge.
+SKY1_DELAY equ 38
+SKY2_DELAY equ 38
+HUD_DELAY  equ 275
+
+; Write A to CRTC register reg. Trashes BC.
+macro CRTC_SET reg
+    ld bc,CRTC_SEL*256+{reg}
+    out (c),c
+    inc b
+    out (c),a
+mend
+
+; Burn exactly n NOPs (n >= 5). Trashes B.
+macro WAIT_NOPS n
+    ld b,({n}-1)>>2
+    djnz $
+    defs ({n}-1)&3,0
+mend
 
 isr:
     push af
@@ -15,7 +88,30 @@ isr:
     ld b,PPI_B
     in a,(c)
     rra
-    jr nc,.not_vsync
+    jp c,isr_vsync
+    ld hl,int_idx
+    inc (hl)
+    ld a,(hl)
+    cp INTS_PER_FRAME
+    jr c,.dispatch
+    ld (hl),INT_UNSYNCED
+    jp isr_exit
+.dispatch:
+    add a,a
+    ld l,a
+    ld h,0
+    ld bc,isr_table-2
+    add hl,bc
+    ld a,(hl)
+    inc hl
+    ld h,(hl)
+    ld l,a
+    jp (hl)
+
+isr_table:
+    dw isr_1, isr_2, isr_3, isr_4, isr_5
+
+isr_vsync:
     xor a
     ld (int_idx),a
     ld hl,(frame_count)
@@ -25,37 +121,117 @@ isr:
     inc (hl)
     ld a,(flip_pending)
     or a
-    jr z,.done
+    jr z,.palette
     ld a,(hl)
     cp 2
-    jr c,.done
+    jr c,.palette
     jr z,.on_time
     ld hl,(late_flips)
     inc hl
     ld (late_flips),hl
 .on_time:
-    ld bc,CRTC_SEL*256+12
-    out (c),c
-    ld a,(next_crtc+1)
-    inc b
-    out (c),a
-    dec b
-    inc c
-    out (c),c
-    ld a,(next_crtc)
-    inc b
-    out (c),a
+    ld hl,(next_crtc)
+    ld (pf_crtc),hl
     ld hl,(flips)
     inc hl
     ld (flips),hl
     xor a
     ld (frames_since_flip),a
     ld (flip_pending),a
-    jr .done
-.not_vsync:
-    ld hl,int_idx
-    inc (hl)
-.done:
+.palette:
+    ; the screen is in its bottom border: put the playfield palette back
+    ld hl,pf_palette+1
+    ld bc,GA_PORT*256+1
+.pen:
+    out (c),c
+    ld a,(hl)
+    out (c),a
+    inc hl
+    inc c
+    ld a,c
+    cp 16
+    jr c,.pen
+    ld c,SKY_PEN
+    out (c),c
+    ld a,(sky_colours)
+    out (c),a
+    jp isr_exit
+
+; B row 18: set up frame A.
+isr_1:
+    ld a,(split_on)
+    or a
+    jr z,.start
+    ld a,R6_A
+    CRTC_SET 6
+    ld a,R7_A
+    CRTC_SET 7
+.start:
+    ld a,(pf_crtc+1)
+    CRTC_SET 12
+    ld a,(pf_crtc)
+    CRTC_SET 13
+    jp isr_exit
+
+; Line 34: second sky band.
+isr_2:
+    ld bc,GA_PORT*256+SKY_PEN
+    out (c),c
+    ld a,(sky_colours+1)
+    WAIT_NOPS SKY1_DELAY+5
+    ld b,GA_PORT
+    out (c),a
+    jp isr_exit
+
+; Line 86: third sky band; frame A ends after row 17, frame B shows 7 rows.
+isr_3:
+    ld bc,GA_PORT*256+SKY_PEN
+    out (c),c
+    ld a,(sky_colours+2)
+    WAIT_NOPS SKY2_DELAY+5
+    ld b,GA_PORT
+    out (c),a
+    ld a,(split_on)
+    or a
+    jp z,isr_exit
+    ld a,R4_A
+    CRTC_SET 4
+    ld a,R6_B
+    CRTC_SET 6
+    jp isr_exit
+
+; Line 138: frame B gets VSYNC on its row 12 and shows the HUD; the HUD
+; palette goes in from the end of line 143.
+isr_4:
+    ld a,(split_on)
+    or a
+    jp z,isr_exit
+    ld a,R7_B
+    CRTC_SET 7
+    ld a,HUD_R12
+    CRTC_SET 12
+    ld a,HUD_R13
+    CRTC_SET 13
+    ld hl,hud_palette+1
+    WAIT_NOPS HUD_DELAY+5
+    ld bc,GA_PORT*256+1
+    repeat 15           ; pens 1-15, one every 13 us
+    out (c),c
+    ld a,(hl)
+    out (c),a
+    inc hl
+    inc c
+    rend
+    jp isr_exit
+
+; B row 5: frame B ends after its row 20.
+isr_5:
+    ld a,(split_on)
+    or a
+    jp z,isr_exit
+    ld a,R4_B
+    CRTC_SET 4
+isr_exit:
     pop hl
     pop bc
     pop af
@@ -63,9 +239,9 @@ isr:
     ret
 
 ; Queue the back buffer for display and wait until the flip has happened.
-; Also records how long the frame's work took, in 1/300 s units.
+; Also records how long the frame's work took, in 1/300 s units. Interrupts
+; stay enabled: a DI here would delay the raster interrupts.
 flip_and_wait:
-    di
     ld a,(frames_since_flip)
     ld b,a
     add a,a
@@ -84,11 +260,25 @@ flip_and_wait:
 .keep:
     ld a,1
     ld (flip_pending),a
-    ei
 .wait:
     ld a,(flip_pending)
     or a
     jr nz,.wait
+    ret
+
+; Program the CRTC for a standard full screen at start address DE (D = R12),
+; before the split takes over.
+crtc_init:
+    ld a,38
+    CRTC_SET 4
+    ld a,25
+    CRTC_SET 6
+    ld a,30
+    CRTC_SET 7
+    ld a,d
+    CRTC_SET 12
+    ld a,e
+    CRTC_SET 13
     ret
 
 ; Read keyboard matrix line A. Returns the line's bits in A (0 = pressed).
@@ -151,10 +341,9 @@ read_input:
     ld (joy_state),a
     ret
 
-; Load the 16 pens from HL and set the border to pen 0's colour.
+; Load the 16 pens from HL and set the border to black.
 set_palette:
-    ld b,GA_PORT
-    ld c,0
+    ld bc,GA_PORT*256+0
 .pen:
     out (c),c
     ld a,(hl)
@@ -165,17 +354,22 @@ set_palette:
     cp 16
     jr c,.pen
     out (c),c           ; pen 16 = border
-    ld a,(palette_data)
+    ld a,#54
     out (c),a
     ret
 
 frame_count:       dw 0
 flips:             dw 0
 late_flips:        dw 0
-int_idx:           db 0
+int_idx:           db INT_UNSYNCED
 frames_since_flip: db 0
 flip_pending:      db 0
-next_crtc:         dw 0     ; low byte R13, high byte R12
+split_on:          db 0
+next_crtc:         dw 0     ; queued playfield address: low byte R13, high byte R12
+pf_crtc:           dw 0     ; playfield address for the next frame A
 work_ints:         db 0
 work_ints_max:     db 0
 joy_state:         db 0
+
+; Sky pen colour for lines 0-33, 34-85 and 86-143.
+sky_colours:       db #54, #44, #58
