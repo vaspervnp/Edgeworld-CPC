@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Generate the test planet strip used by the scroll engine milestones.
 
-A 1024x144 Mode 0 image (256 x 18 tiles) that wraps seamlessly: starfield,
+A 1024x136 Mode 0 image (256 x 17 tiles) that wraps seamlessly: starfield,
 a mountain range, ground, four shield generators and column markers on the
 bottom row (a block at column 0, a tick every 8 columns) so scrolling and
 wrap-around can be checked by eye.
 
 The sky is a single pen (1); raster interrupts recolour it in bands.
+Crystal spires stand in the foreground: the second image marks their
+pixels (1 = foreground), and sprites pass behind them.
 
-Usage: gen_testplanet.py out.png
+Usage: gen_testplanet.py out.png fg_mask.png
 """
 import math
 import random
@@ -17,7 +19,7 @@ from PIL import Image
 
 from cpcpal import COLOURS
 
-W, H = 1024, 144
+W, H = 1024, 136
 COLS = W // 4
 
 PENS = ["black", "black", "sky_blue", "mauve", "bright_white", "red", "orange",
@@ -26,8 +28,9 @@ PENS = ["black", "black", "sky_blue", "mauve", "bright_white", "red", "orange",
 BLACK, SKY, STAR2, MAUVE, WHITE, RED, ORANGE, BYELLOW, YELLOW, GREY, \
     PBLUE, GREEN, BGREEN, BRED, CYAN, MAGENTA = range(16)
 
-GROUND = 104              # first ground line (tile row 13)
+GROUND = 96               # first ground line (tile row 12)
 GENERATOR_COLS = (32, 96, 160, 224)
+SPIRE_COLS = (12, 52, 75, 118, 141, 190, 236)
 
 
 def mountain_heights():
@@ -43,7 +46,7 @@ def mountain_heights():
     return h
 
 
-def main(out):
+def main(out, fg_out):
     rnd = random.Random(1988)
     img = Image.new("P", (W, H), SKY)
     pal = []
@@ -77,11 +80,11 @@ def main(out):
     rect(0, GROUND, W, GROUND + 2, ORANGE)
     pebbles = [[(1, 3)], [(0, 5), (2, 2)], [(3, 6)], [(2, 4), (1, 7)]]
     for c in range(COLS):
-        for row in range(14, 17):
+        for row in range(13, 16):
             if rnd.random() < 0.3:
                 for (dx, dy) in rnd.choice(pebbles):
                     px[c * 4 + dx, row * 8 + dy] = YELLOW
-    rect(0, 136, W, H, BLACK)
+    rect(0, 128, W, H, BLACK)
 
     # Boulders on the crust.
     for c in range(4, COLS, 23):
@@ -92,18 +95,35 @@ def main(out):
     # Shield generators: platform, shaft with a glowing core, domed cap.
     for gc in GENERATOR_COLS:
         x = gc * 4
-        rect(x, 88, x + 12, GROUND, GREY)             # platform rows 11-12
-        rect(x, 88, x + 12, 90, PBLUE)
-        rect(x + 4, 56, x + 8, 88, GREY)              # shaft rows 7-10
-        rect(x + 5, 60, x + 7, 84, BGREEN)
-        rect(x, 48, x + 12, 56, GREEN)                # cap row 6
-        rect(x + 2, 48, x + 10, 50, BGREEN)
-        rect(x + 5, 48, x + 7, 49, WHITE)
+        rect(x, 80, x + 12, GROUND, GREY)             # platform rows 10-11
+        rect(x, 80, x + 12, 82, PBLUE)
+        rect(x + 4, 48, x + 8, 80, GREY)              # shaft rows 6-9
+        rect(x + 5, 52, x + 7, 76, BGREEN)
+        rect(x, 40, x + 12, 48, GREEN)                # cap row 5
+        rect(x + 2, 40, x + 10, 42, BGREEN)
+        rect(x + 5, 40, x + 7, 41, WHITE)
+
+    # Foreground crystal spires: 12 pixels wide, 44 lines tall, on the crust.
+    fg_img = Image.new("P", (W, H), 0)
+    fg_img.putpalette([0, 0, 0, 255, 255, 255] + [0] * 762)
+    fg = fg_img.load()
+    for sc in SPIRE_COLS:
+        x0 = sc * 4
+        for i in range(44):
+            y = GROUND + 4 - 44 + i
+            half = 1 + i * 5 // 43          # 1..6 pixels each side of the centre
+            for x in range(x0 + 6 - half, x0 + 6 + half):
+                pen = CYAN if x < x0 + 6 else PBLUE
+                if x == x0 + 6 - half or (i < 3):
+                    pen = WHITE
+                px[x, y] = pen
+                fg[x, y] = 1
+    fg_img.save(fg_out)
 
     # Column markers on the bottom row.
     for c in range(0, COLS, 8):
-        rect(c * 4, 138, c * 4 + 2, 143, BRED)
-    rect(0, 136, 8, 144, BYELLOW)
+        rect(c * 4, 130, c * 4 + 2, 135, BRED)
+    rect(0, 128, 8, 136, BYELLOW)
 
     # Every pen but the sky on the last line, so a HUD palette switch that
     # comes too early shows (tests/test_screen.py).
@@ -114,6 +134,6 @@ def main(out):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         raise SystemExit(__doc__)
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2])

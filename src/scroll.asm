@@ -47,17 +47,9 @@ draw_column:
     ld (.rowpage+1),a
     ld ixh,MAP_ROWS
 .row:
-    push de
-    ; tile source: tile_data + tile * 16
-    ld l,(iy+0)
+    ld a,(iy+0)
     inc iy
-    ld h,0
-    add hl,hl
-    add hl,hl
-    add hl,hl
-    add hl,hl
-    ld bc,tile_data
-    add hl,bc
+    TILE_SRC
     ; 8 lines of 2 bytes, each line #800 further down. DE is even, so the
     ; first LDI never carries into D; the second byte is stored by hand
     ; because DE+1 can cross a 256-byte boundary. Tiles are 16-byte aligned,
@@ -75,16 +67,17 @@ draw_column:
     ldi
     ld a,(hl)
     ld (de),a
-    ; next char row: 80 bytes on, wrapping inside the 2K ring
-    pop hl
-    ld bc,SCREEN_BYTES
-    add hl,bc
-    ld a,h
+    ; next char row: 80 bytes on from the row's start (E is one past it),
+    ; carrying into the ring block and wrapping it inside the 2K ring
+    ld a,e
+    add a,SCREEN_BYTES-1
+    ld e,a
+    ld a,d
+    adc a,0
     and 7
 .rowpage:
     or 0
     ld d,a
-    ld e,l
     dec ixh
     jr nz,.row
     ret
@@ -102,6 +95,14 @@ scroll_init:
     ld (back_page),a
     ld a,#20
     ld (back_r12),a
+    ld hl,list_a
+    ld (front_list),hl
+    ld hl,list_b
+    ld (back_list),hl
+    ld hl,layouts_a
+    ld (front_layouts),hl
+    ld hl,layouts_b
+    ld (back_layouts),hl
     ld a,(front_page)
     call fill_page
     ld a,(back_page)
@@ -178,7 +179,7 @@ scroll_update_back:
 swap_buffers:
     ld hl,front_pos
     ld de,back_pos
-    ld b,4
+    ld b,BUF_STATE
 .swap:
     ld c,(hl)
     ld a,(de)
@@ -207,11 +208,17 @@ col=col+1
 scroll_pos: dw 0            ; position to show next
 scroll_dir: db 1            ; columns per displayed frame: -1, 0 or 1
 
-; Buffer state: position shown, page high byte, R12 page bits (4 bytes each,
-; same layout, swapped by swap_buffers).
+; Buffer state: position shown, page high byte, R12 page bits, sprite list
+; and sprite layouts (BUF_STATE bytes each, same layout, swapped by
+; swap_buffers).
+BUF_STATE equ 8
 front_pos:  dw 0
 front_page: db 0
 front_r12:  db 0
+front_list: dw 0
+front_layouts: dw 0
 back_pos:   dw 0
 back_page:  db 0
 back_r12:   db 0
+back_list:  dw 0
+back_layouts: dw 0

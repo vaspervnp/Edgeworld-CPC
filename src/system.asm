@@ -7,8 +7,8 @@
 ;
 ; Each 312-line frame is cut into two CRTC frames (a "rupture"):
 ;
-;   frame A  rows 0-17   lines   0-143  scrolling playfield (double buffered)
-;   frame B  rows 0-20   lines 144-311  HUD (7 rows), border, VSYNC at row 12
+;   frame A  rows 0-16   lines   0-135  scrolling playfield (double buffered)
+;   frame B  rows 0-21   lines 136-311  HUD (8 rows), border, VSYNC at row 13
 ;
 ; so VSYNC stays at absolute row 30 and the frame stays 312 lines long. The
 ; interrupts rewrite R4 (rows in frame), R6 (rows shown), R7 (VSYNC row) and
@@ -16,15 +16,16 @@
 ; the row counter is past the value written, so no comparison fires early,
 ; and R12/R13 are never written on row 0, where CRTC 1 reloads them:
 ;
-;   index 1 (B row 18): R6 = 25, R7 = 30 (never reached in A), R12/R13 = playfield
-;   index 3 (A row 10): R4 = 17, R6 = 7
-;   index 4 (A row 17): R7 = 12, R12/R13 = HUD
-;   index 5 (B row 5):  R4 = 20
+;   index 1 (B row 19): R6 = 25, R7 = 30 (never reached), R12/R13 = playfield
+;   index 3 (A row 10): R4 = 16, R6 = 8, R12/R13 = HUD
+;   index 4 (B row 0):  R7 = 13
+;   index 5 (B row 6):  R4 = 21
 ;
-; Rasters: the sky pen changes colour on lines 34 and 86 and the HUD palette
-; is switched in at line 144, all timed to land in the horizontal blank. The
-; HUD's first 4 lines use pen 0 only, so the palette load may run into them.
-; The VSYNC interrupt puts the playfield palette back.
+; Rasters: the sky pen changes colour on lines 36 and 88, timed to land in
+; the horizontal blank. The HUD palette is loaded by the interrupt on line
+; 138, which is HUD line 2: the HUD's first 8 lines use pen 0 only, so the
+; load can run through them without a wait. The VSYNC interrupt puts the
+; playfield palette back.
 ;
 ; Flips: when the main loop has queued a buffer and at least 2 frames have
 ; passed since the last flip, the VSYNC interrupt takes its address, and
@@ -34,8 +35,8 @@
 INTS_PER_FRAME equ 6
 INT_UNSYNCED   equ 6        ; int_idx value until the first VSYNC is seen
 
-PLAY_ROWS   equ 18
-HUD_ROWS    equ 7
+PLAY_ROWS   equ 17
+HUD_ROWS    equ 8
 TOTAL_ROWS  equ 39
 VSYNC_ROW   equ 30
 
@@ -56,15 +57,8 @@ SKY_PEN equ 1
 ; lands 14 us into the line after the interrupt's; 38 more puts it at 52 us,
 ; mid-blank (the picture is 0-40 us), so the new colour starts on lines 36
 ; and 88, with 6 us of margin either way for interrupt latency.
-;
-; The HUD handler reaches its first palette write 49 NOPs later in the code,
-; i.e. at 63 us on line 139. Its 15 writes take 182 us and must all fall
-; between the end of line 143's picture and the start of HUD line 4 (line
-; 148): an 85 us window for the first write. 275 more puts it at 18 us on
-; line 144, about 42 us from either edge.
 SKY1_DELAY equ 38
 SKY2_DELAY equ 38
-HUD_DELAY  equ 275
 
 ; Write A to CRTC register reg. Trashes BC.
 macro CRTC_SET reg
@@ -142,15 +136,13 @@ isr_vsync:
     ; the screen is in its bottom border: put the playfield palette back
     ld hl,pf_palette+1
     ld bc,GA_PORT*256+1
-.pen:
+    repeat 15
     out (c),c
     ld a,(hl)
     out (c),a
     inc hl
     inc c
-    ld a,c
-    cp 16
-    jr c,.pen
+    rend
     ld c,SKY_PEN
     out (c),c
     ld a,(sky_colours)
@@ -183,7 +175,8 @@ isr_2:
     out (c),a
     jp isr_exit
 
-; Line 86: third sky band; frame A ends after row 17, frame B shows 7 rows.
+; Line 86: third sky band; frame A ends after row 16, frame B shows 8 rows
+; of the HUD.
 isr_3:
     ld bc,GA_PORT*256+SKY_PEN
     out (c),c
@@ -198,22 +191,21 @@ isr_3:
     CRTC_SET 4
     ld a,R6_B
     CRTC_SET 6
+    ld a,HUD_R12
+    CRTC_SET 12
+    ld a,HUD_R13
+    CRTC_SET 13
     jp isr_exit
 
-; Line 138: frame B gets VSYNC on its row 12 and shows the HUD; the HUD
-; palette goes in from the end of line 143.
+; Line 138 (HUD line 2): frame B gets VSYNC on its row 13; the HUD palette
+; goes in while the HUD's blank top lines are shown.
 isr_4:
     ld a,(split_on)
     or a
     jp z,isr_exit
     ld a,R7_B
     CRTC_SET 7
-    ld a,HUD_R12
-    CRTC_SET 12
-    ld a,HUD_R13
-    CRTC_SET 13
     ld hl,hud_palette+1
-    WAIT_NOPS HUD_DELAY+5
     ld bc,GA_PORT*256+1
     repeat 15           ; pens 1-15, one every 13 us
     out (c),c
@@ -224,7 +216,7 @@ isr_4:
     rend
     jp isr_exit
 
-; B row 5: frame B ends after its row 20.
+; B row 6: frame B ends after its row 21.
 isr_5:
     ld a,(split_on)
     or a
@@ -239,31 +231,26 @@ isr_exit:
     ret
 
 ; Queue the back buffer for display and wait until the flip has happened.
-; Also records how long the frame's work took, in 1/300 s units. Interrupts
-; stay enabled: a DI here would delay the raster interrupts.
+; The wait loop counts its turns (IDLE_LOOP NOPs each, interrupts aside),
+; which measures the time left over in the frame. Interrupts stay enabled:
+; a DI here would delay the raster interrupts.
+IDLE_LOOP equ 10
+
 flip_and_wait:
-    ld a,(frames_since_flip)
-    ld b,a
-    add a,a
-    add a,b
-    add a,a             ; * INTS_PER_FRAME
-    ld b,a
-    ld a,(int_idx)
-    add a,b
-    ld (work_ints),a
-    ld b,a
-    ld a,(work_ints_max)
-    cp b
-    jr nc,.keep
-    ld a,b
-    ld (work_ints_max),a
-.keep:
     ld a,1
     ld (flip_pending),a
+    ld de,0
 .wait:
+    inc de
     ld a,(flip_pending)
     or a
     jr nz,.wait
+    ld (idle_last),de
+    ld hl,(idle_min)
+    or a
+    sbc hl,de
+    ret c
+    ld (idle_min),de
     ret
 
 ; Program the CRTC for a standard full screen at start address DE (D = R12),
@@ -367,8 +354,8 @@ flip_pending:      db 0
 split_on:          db 0
 next_crtc:         dw 0     ; queued playfield address: low byte R13, high byte R12
 pf_crtc:           dw 0     ; playfield address for the next frame A
-work_ints:         db 0
-work_ints_max:     db 0
+idle_last:         dw 0     ; idle loop turns before the last flip
+idle_min:          dw #FFFF ; the fewest seen
 joy_state:         db 0
 
 ; Sky pen colour for lines 0-33, 34-85 and 86-143.
