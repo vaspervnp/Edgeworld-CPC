@@ -22,8 +22,9 @@ $(BUILD)/testplanet.inc: assets/testplanet.png assets/testplanet_fg.png tools/pn
 assets/sprites.png assets/sprites.json &: tools/gen_sprites.py tools/gen_testplanet.py tools/cpcpal.py
 	$(PYTHON) tools/gen_sprites.py assets/sprites.png assets/sprites.json
 
-$(BUILD)/sprites.inc: assets/sprites.png assets/sprites.json tools/png2spr.py tools/cpcpal.py | $(BUILD)
-	$(PYTHON) tools/png2spr.py assets/sprites.png assets/sprites.json $(BUILD)/sprites
+$(BUILD)/sprites.inc: assets/sprites.png assets/sprites.json tools/spritec.py tools/cpcpal.py | $(BUILD)
+	rm -f $(BUILD)/sprites.bank*.bin
+	$(PYTHON) tools/spritec.py assets/sprites.png assets/sprites.json $(BUILD)/sprites
 
 $(BUILD)/tables.mask: tools/gen_tables.py | $(BUILD)
 	$(PYTHON) tools/gen_tables.py $(BUILD)/tables
@@ -37,13 +38,14 @@ $(BUILD)/hud.rle: assets/hud.png tools/png2scr.py tools/cpcpal.py | $(BUILD)
 $(BUILD)/shield.bin: $(SRC) $(BUILD)/testplanet.inc $(BUILD)/hud.rle $(BUILD)/sprites.inc $(BUILD)/tables.mask
 	$(RASM) src/main.asm -ob $(BUILD)/shield.bin -s -sa -os $(BUILD)/shield.sym
 
-$(DSK): $(BUILD)/shield.bin
-	rm -f $@
-	$(IDSK) $@ -n
-	$(IDSK) $@ -i $< -t 1 -c 0200 -e 0200
+# The disc: a BASIC loader (SHIELD.BAS) that loads the sprite banks into
+# extra RAM, then runs the game (GAME.BIN).
+$(DSK): $(BUILD)/shield.bin $(BUILD)/sprites.inc tools/mkdisc.py
+	$(PYTHON) tools/mkdisc.py $@ $(BUILD)
 
 test: $(DSK)
 	$(PYTHON) tests/test_screen.py
+	$(PYTHON) tests/test_player.py
 
 clean:
 	rm -rf $(BUILD)

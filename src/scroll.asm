@@ -206,7 +206,7 @@ col=col+1
     rend
 
 scroll_pos: dw 0            ; position to show next
-scroll_dir: db 1            ; columns per displayed frame: -1, 0 or 1
+scroll_dir: db 0            ; columns per displayed frame: -1, 0 or 1
 
 ; Buffer state: position shown, page high byte, R12 page bits, sprite list
 ; and sprite layouts (BUF_STATE bytes each, same layout, swapped by

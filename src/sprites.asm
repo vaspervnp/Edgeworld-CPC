@@ -3,10 +3,13 @@
 ; them.
 ;
 ; A sprite record is 4 bytes: frame id, world x (16 bits: pixels around the
-; planet, 0-1023), y (top line, 0-143). Each frame is stored twice, as drawn
+; planet, 0-1023), y (top line, 0-135). Each frame is stored twice, as drawn
 ; (W bytes per line) and shifted one pixel right (W+1 bytes), so any x can be
-; drawn with whole bytes. Pen 0 is transparent: the AND mask of a sprite
-; byte comes from mask_table, so sprites store pixels only.
+; drawn with whole bytes, both as raw pixels and as a compiled routine (see
+; tools/spritec.py), in one of the 6128's extra RAM banks, paged in at
+; #4000 while sprites are drawn. Pen 0 is transparent: the generic loop
+; takes the AND mask of a sprite byte from mask_table; compiled routines
+; carry their masks as immediates.
 ;
 ; Each screen buffer keeps the list of records it shows. Before the back
 ; buffer is drawn again, the cells under its old records are restored from
@@ -19,7 +22,8 @@
 ; would cross a 256-byte boundary of the screen is drawn in two parts, so
 ; the inner loop can step with INC L.
 
-MAX_SPRITES equ 12
+MAX_SPRITES equ 16
+FRAME_SIZE  equ 12          ; bytes per spr_frames entry
 REC_SIZE    equ 4
 VIEW_BYTES  equ SCREEN_WORDS*2
 COPY_LINE   equ 12          ; bytes of code per line in copy_unroll
@@ -99,6 +103,8 @@ render_sprites:
     pop af
     dec a
     jr nz,.draw
+    ld bc,GA_PORT*256+RAM_BASE   ; base RAM back at #4000
+    out (c),c
     ; foreground over the sprites that need it
     ld hl,(back_layouts)
     ld b,(hl)
@@ -123,7 +129,7 @@ render_sprites:
     djnz .overlay
     ret
 
-; Load the record at HL: sp_x, sp_y and the frame's sp_w0, sp_h, sp_p0, sp_p1.
+; Load the record at HL: sp_x, sp_y and the frame's table entry (sp_w0 on).
 rec_load:
     ld a,(hl)
     inc hl
@@ -135,9 +141,10 @@ rec_load:
     ld c,(hl)
     ld hl,sp_y
     ld (hl),c
-    ; frame table entry: 6 bytes
+    ; frame table entry: FRAME_SIZE (12) bytes
     ld l,a
     ld h,0
+    add hl,hl
     add hl,hl
     ld e,l
     ld d,h
@@ -146,8 +153,9 @@ rec_load:
     ld de,spr_frames
     add hl,de
     ld de,sp_w0
-    ld bc,6
-    ldir
+    repeat FRAME_SIZE
+    ldi
+    rend
     ret
 
 ; ---------------------------------------------------------------------------
@@ -474,7 +482,14 @@ ovl_end:
 ; Masked sprite drawing.
 
 ; Draw the loaded sprite into the back buffer; band_layout must have run.
+; Pages in the sprite's RAM bank (render_sprites puts base RAM back). A
+; whole sprite whose lines stay inside 256-byte pages is drawn by its
+; compiled routine; a clipped one (or a rare one whose rows cross a 256-byte
+; boundary) by the generic masked loop, from its raw data.
 draw_sprite:
+    ld a,(sp_bank)
+    ld b,GA_PORT
+    out (c),a
     ; screen x = world x - view x, as a signed value in -512..511
     ld hl,(back_pos)
     add hl,hl
@@ -493,12 +508,15 @@ draw_sprite:
     sra h
     rr l                    ; HL = screen byte column, carry = odd pixel
     ld de,(sp_p0)
+    ld bc,(sp_c0)
     ld a,(sp_w0)
     jr nc,.unshifted
     ld de,(sp_p1)
+    ld bc,(sp_c1)
     inc a
 .unshifted:
     ld (ds_w),a
+    ld (ds_code),bc
     ; clip to the view's 80 bytes
     bit 7,h
     jr z,.from_left
@@ -525,43 +543,33 @@ draw_sprite:
     ld c,a
     ld a,(ds_w)
     cp c
-    jr c,.fits
+    jr c,.whole
     ld a,c
-.fits:
     ld (ds_n),a
     xor a
+    jr .clipped
+.whole:
+    ld (ds_n),a
+    push de
+    call ring_offset
+    call draw_compiled
+    pop de
+    ret nc
+    jr .generic
 .clipped:
     add a,e                 ; source += skipped bytes
     ld e,a
     adc a,d
     sub e
     ld d,a
+    push de
+    call ring_offset
+    pop de
+.generic:
     ld a,(ds_n)
     call dl_setup
     ld a,(ds_n)
     ld (db_n+1),a
-    ; ring offset of the sprite's first byte on its first row
-    ld a,(cl_r0)
-    add a,a
-    add a,row_off&#FF
-    ld l,a
-    adc a,row_off>>8
-    sub l
-    ld h,a
-    ld a,(hl)
-    inc hl
-    ld h,(hl)
-    ld l,a
-    ld a,(ds_off)
-    add a,l
-    ld l,a
-    adc a,h
-    sub l
-    ld h,a
-    ld bc,(back_pos)
-    add hl,bc
-    add hl,bc
-    ld (ds_o),hl
     ; the bands: as laid out by band_layout
     ld a,(cl_l0)
     add a,a
@@ -589,6 +597,81 @@ draw_sprite:
     call next_band
     pop af
     jp draw_band
+
+; ds_o = ring offset of the sprite's first byte on its first row.
+ring_offset:
+    ld a,(cl_r0)
+    add a,a
+    add a,row_off&#FF
+    ld l,a
+    adc a,row_off>>8
+    sub l
+    ld h,a
+    ld a,(hl)
+    inc hl
+    ld h,(hl)
+    ld l,a
+    ld a,(ds_off)
+    add a,l
+    ld l,a
+    adc a,h
+    sub l
+    ld h,a
+    ld bc,(back_pos)
+    add hl,bc
+    add hl,bc
+    ld (ds_o),hl
+    ret
+
+; Draw the whole sprite with its compiled routine, unless one of its rows
+; would run past the end of the 2K screen ring: then return with carry set.
+draw_compiled:
+    ld a,(cl_full)
+    inc a
+    ld b,a                  ; rows: the first, the full ones, the last
+    ld a,(cl_nlast)
+    or a
+    jr z,.rows
+    inc b
+.rows:
+    ld a,(ds_w)
+    ld c,a
+    ld hl,(ds_o)            ; the row's ring offset
+    ld de,VIEW_BYTES
+.row:
+    ld a,h
+    and 7
+    cp 7
+    jr nz,.fits             ; not in the last 256 bytes of the ring
+    ld a,l
+    add a,c
+    jr nc,.fits
+    jr z,.fits              ; ends exactly at the end of the ring
+    scf
+    ret
+.fits:
+    add hl,de
+    djnz .row
+    ; HL = page | ring block | first line, ring offset low byte
+    ld a,(cl_l0)
+    add a,a
+    add a,a
+    add a,a
+    ld c,a
+    ld hl,(ds_o)
+    ld a,h
+    and 7
+    or c
+    ld c,a
+    ld a,(back_page)
+    or c
+    ld h,a
+    ld de,(ds_code)
+    ld (.go+1),de
+.go:
+    call 0
+    or a
+    ret
 
 ; Move ds_o to the next character row; C = 0 (its first line).
 next_band:
@@ -747,10 +830,14 @@ r=r+1
 ; Working variables.
 sp_x:    dw 0
 sp_y:    db 0
-sp_w0:   db 0               ; frame info, 6 bytes as in spr_frames
+sp_w0:   db 0               ; frame info, FRAME_SIZE bytes as in spr_frames
 sp_h:    db 0
-sp_p0:   dw 0
+sp_p0:   dw 0               ; raw data, unshifted and shifted
 sp_p1:   dw 0
+sp_c0:   dw 0               ; compiled routines
+sp_c1:   dw 0
+sp_bank: db 0               ; RAM configuration that pages them in
+         db 0
 ; A sprite's layout (LAYOUT_SIZE bytes, kept per buffer for the restore).
 layout:
 rs_col0: db 0               ; first map column
@@ -768,6 +855,7 @@ ds_k:    db 0
 ds_off:  db 0
 ds_cnt:  db 0
 ds_o:    dw 0
+ds_code: dw 0
 
 ; What each buffer shows: the records, and the layouts drawn.
 list_a:  db 0

@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Generate the sprite sheet: the Runner (4 running frames), its rider, a
-drifter enemy (2 frames), and the Runner with the rider on its back (4
-frames: one sprite while mounted, cheaper than two).
+"""Generate the sprite sheet.
+
+The Runner (4 running frames and a standing one), its rider on foot
+(standing, 2 walking frames, aiming up), the two together while mounted (4
+frames: one sprite is cheaper than two), all facing right and mirrored to
+face left; a drifter enemy (2 frames); and the rider's bolts (horizontal,
+vertical, diagonal both ways).
 
 Sprites share the playfield palette; pen 0 is transparent. Writes the sheet
 (one frame after another, left to right) and a JSON list of frames, in the
@@ -40,7 +44,7 @@ RUNNER_BODY = [
 RUNNER_H = 24
 RIDER_DX, RIDER_DY = 4, -2     # rider position on the Runner when mounted
 
-RIDER = [
+RIDER_BODY = [
     "..eee...",
     ".eeeee..",
     ".eerrr..",
@@ -50,10 +54,30 @@ RIDER = [
     ".pppp...",
     ".pspp...",
     ".pppp...",
-    "..ee....",
-    ".eeee...",
-    ".e..e...",
 ]
+RIDER_UP_BODY = [
+    "....w...",
+    "..eew...",
+    ".eerw...",
+    "..eep...",
+    ".pppp...",
+    "pppp....",
+    ".pppp...",
+    ".pspp...",
+    ".pppp...",
+]
+RIDER_LEGS = {
+    "stand": ["..ee....", ".eeee...", ".e..e..."],
+    "walk0": ["..ee....", ".ee.e...", "ee...e.."],
+    "walk1": ["..ee....", "..eee...", "..ee...."],
+}
+RIDER = RIDER_BODY + RIDER_LEGS["stand"]
+
+SHOTS = {
+    "shot_h": ["YwwY", "YwwY"],
+    "shot_v": ["ww", "YY", "YY", "ww"],
+    "shot_d": ["...w", "..Y.", ".Y..", "w..."],
+}
 
 DRIFTER = [
     [
@@ -97,13 +121,17 @@ def line(g, x0, y0, x1, y1, pen):
 
 
 def runner(phase):
+    """Running frame 0-3, or phase None for standing."""
     g = grid(RUNNER_BODY) + [[0] * 16 for _ in range(RUNNER_H - len(RUNNER_BODY))]
     # Two legs half a cycle apart; the leg swinging forward is lifted.
     stride = [3, 1, -1, -3]
     for hip, offset, thigh, shin in ((7, 2, KEY["g"], KEY["g"]), (10, 0, KEY["G"], KEY["g"])):
-        p = (phase + offset) % 4
-        dx = stride[p]
-        lift = 2 if p == 3 else 0
+        if phase is None:
+            dx, lift = 0, 0
+        else:
+            p = (phase + offset) % 4
+            dx = stride[p]
+            lift = 2 if p == 3 else 0
         foot_y = RUNNER_H - 1 - lift
         knee = (hip + dx // 2 + 1, 18 - lift // 2)
         line(g, hip, 14, knee[0], knee[1], thigh)
@@ -127,11 +155,21 @@ def mounted(phase):
     return g
 
 
+def mirror(g):
+    return [list(reversed(row)) for row in g]
+
+
 def main(sheet_path, json_path):
-    frames = [(f"runner{i}", runner(i)) for i in range(4)]
-    frames.append(("rider", grid(RIDER)))
+    right = [(f"mounted{i}", mounted(i)) for i in range(4)]
+    right += [(f"runner{i}", runner(i)) for i in range(4)]
+    right.append(("runner_stand", runner(None)))
+    right += [(f"rider_{k}", grid(RIDER_BODY + RIDER_LEGS[k])) for k in ("stand", "walk0", "walk1")]
+    right.append(("rider_up", grid(RIDER_UP_BODY + RIDER_LEGS["stand"])))
+    # Facing right, then the same frames facing left: frame + FACING_LEFT.
+    frames = [(name + "_r", g) for name, g in right] + [(name + "_l", mirror(g)) for name, g in right]
     frames += [(f"drifter{i}", grid(d)) for i, d in enumerate(DRIFTER)]
-    frames += [(f"mounted{i}", mounted(i)) for i in range(4)]
+    frames += [(name, grid(g)) for name, g in SHOTS.items()]
+    frames.append(("shot_dl", mirror(grid(SHOTS["shot_d"]))))
 
     width = sum(len(f[0]) for _, f in frames)
     height = max(len(f) for _, f in frames)

@@ -11,10 +11,12 @@ that the whole 200-line picture is exactly what it should be:
   the sky pen in its raster colour for each band (so a raster change that
   lands inside the picture fails the test);
 - lines 136-199: the HUD in its own palette, with the radar's view marker
-  where the scroll position says;
+  where the scroll position says and the spare Runner icons;
 - the position advances one column every 2 frames (25 fps) with no late
   flips, the frame's work fits the budget, and the frame stays 312 lines;
-- it scrolls right on its own, left while left is held, and stops on down.
+- the camera follows the Runner: standing still, riding right (once up to
+  speed), skidding round to ride left, coasting to a stop, a lap of the
+  planet.
 """
 import json
 import os
@@ -40,6 +42,8 @@ MARKER_LINES = range(24, 27)        # HUD lines with the radar view marker
 REC_SIZE = 4
 RADAR_X0, RADAR_X1 = 16, 144
 VIEW_CENTRE = 20
+SPARES_LINES = range(47, 52)        # HUD lines with the spare Runner icons
+SPARES_X, SPARES_STEP, MAX_SPARES = 40, 6, 5
 
 
 def indexed_rows(path):
@@ -67,6 +71,8 @@ class Expected:
         self.hud = [bytes(hud_pal[p] for p in row) for row in indexed_rows(HUD)]
         self.marker = hud_pal[4]
         self.radar_bg = hud_pal[1]
+        self.icon_full = hud_pal[5]
+        self.icon_empty = hud_pal[2]
 
     def colour(self, y, pen):
         if pen == SKY_PEN:
@@ -94,13 +100,16 @@ class Expected:
                     pens[y][x] = self.planet[y][x0 + x]
         return [bytes(self.colour(y, p) for p in row) for y, row in enumerate(pens)]
 
-    def hud_line(self, y, pos):
-        line = self.hud[y]
+    def hud_line(self, y, pos, spares):
+        line = bytearray(self.hud[y])
         if y in MARKER_LINES:
             mx = RADAR_X0 + (((pos + VIEW_CENTRE) & 255) >> 2) * 2
-            line = bytearray(line)
             line[RADAR_X0:RADAR_X1] = bytes([self.radar_bg]) * (RADAR_X1 - RADAR_X0)
             line[mx:mx + 2] = bytes([self.marker]) * 2
+        if y in SPARES_LINES:
+            for i in range(MAX_SPARES):
+                x = SPARES_X + i * SPARES_STEP
+                line[x:x + 4] = bytes([self.icon_full if i < spares else self.icon_empty]) * 4
         return bytes(line)
 
 
@@ -147,9 +156,13 @@ class Screen:
             xs = [x for x in range(VIEW_W) if shown[y][x] != expected[y][x]]
             raise AssertionError(f"playfield wrong at position {pos} with sprites {records}: "
                                  f"lines {bad[:10]} differ, line {y} at x {xs[:10]}")
-        # The marker is drawn after the flip, so it may lag the picture by a column.
+        # The HUD is not double buffered: the marker is drawn after the flip,
+        # so it may lag the picture by a column, and the spare Runners may be
+        # caught as they change.
+        spares = self.game.byte("PL_SPARES")
         for y in range(HUD_H):
-            options = {self.exp.hud_line(y, p) for p in (pos, pos - 1, pos + 1)}
+            options = {self.exp.hud_line(y, p, n) for p in (pos, pos - 1, pos + 1)
+                       for n in (spares, spares + 1)}
             if shown[PLAY_H + y] not in options:
                 raise AssertionError(f"HUD line {y} is wrong at position {pos}")
         # Nothing but border colour left and right of the picture.
@@ -161,20 +174,23 @@ class Screen:
         return pos
 
 
-def run_phase(screen, pos, frames, expect_dir):
-    """Watch `frames` frames; check each picture and the 1-column-per-2-frames rhythm."""
+def run_phase(screen, pos, frames, expect_dir, settle=0, rhythm=True):
+    """Watch `frames` frames; check each picture, and that after `settle`
+    frames the view only scrolls in expect_dir (or stands still if it is 0),
+    one column every 2 frames unless rhythm is False."""
     seen = []
     for _ in range(frames):
         screen.game.next_frame()
         pos = screen.check(pos)
         seen.append(pos)
-    steps = [b - a for a, b in zip(seen, seen[1:])]
+    steps = [b - a for a, b in zip(seen, seen[1:])][settle:]
     if expect_dir == 0:
-        assert set(steps) == {0}, f"expected no scrolling, got steps {steps}"
+        assert set(steps) <= {0}, f"expected no scrolling, got steps {steps}"
     else:
-        tail = steps[4:]        # a direction change takes a few frames
-        assert set(tail) <= {0, expect_dir}, f"bad steps {tail}"
-        moves = [i for i, s in enumerate(tail) if s]
+        assert set(steps) <= {0, expect_dir}, f"bad steps {steps}"
+        if not rhythm:
+            return pos
+        moves = [i for i, s in enumerate(steps) if s]
         gaps = [b - a for a, b in zip(moves, moves[1:])]
         assert set(gaps) == {2}, f"scroll is not 1 column per 2 frames: gaps {gaps}"
     return pos
@@ -185,19 +201,20 @@ def test_crtc(crtc_type):
     screen = Screen(game)
     pos = screen.check(game.word("SCROLL_POS"))
     game.c.write_ram(game.sym["IDLE_MIN"], b"\xff\xff")   # ignore start-up
+    c = game.c
 
-    pos = run_phase(screen, pos, 120, +1)               # auto-scroll right
-    game.c.key_down(cpc.KEY_LEFT)
-    pos = run_phase(screen, pos, 60, -1)
-    game.c.key_up(cpc.KEY_LEFT)
-    pos = run_phase(screen, pos, 30, -1)                # direction persists
-    game.c.key_down(cpc.KEY_DOWN)
-    game.c.run_frames(4)
-    game.c.key_up(cpc.KEY_DOWN)
-    pos = run_phase(screen, pos, 20, 0)
-    game.c.key_down(cpc.KEY_RIGHT)
-    pos = run_phase(screen, pos, 540, +1)               # more than a full lap
-    game.c.key_up(cpc.KEY_RIGHT)
+    pos = run_phase(screen, pos, 20, 0)                 # standing
+    c.key_down(cpc.KEY_RIGHT)
+    pos = run_phase(screen, pos, 120, +1, settle=30)    # up to speed, then 25 fps
+    c.key_up(cpc.KEY_RIGHT)
+    c.key_down(cpc.KEY_LEFT)
+    pos = run_phase(screen, pos, 120, -1, settle=60)    # skid, turn, ride left
+    c.key_up(cpc.KEY_LEFT)
+    pos = run_phase(screen, pos, 70, -1, rhythm=False)  # coasting...
+    pos = run_phase(screen, pos, 20, 0)                 # ...to a stop
+    c.key_down(cpc.KEY_RIGHT)
+    pos = run_phase(screen, pos, 560, +1, settle=40)    # more than a full lap
+    c.key_up(cpc.KEY_RIGHT)
 
     # 312-line frames: 250 VSYNCs in 5 seconds.
     n = game.word("FRAME_COUNT")

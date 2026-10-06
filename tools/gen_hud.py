@@ -77,7 +77,8 @@ def main(out):
     text(76, TOP + 27, "ENERGY", BYELLOW)
     rect(102, TOP + 27, 152, TOP + 32, GREEN)
     rect(102, TOP + 27, 152, TOP + 28, BGREEN)
-    text(56, TOP + 39, "SHIELDRUNNER", PBLUE)
+    text(8, TOP + 39, "RUNNERS", BYELLOW)    # spare Runner icons follow (src/player.asm)
+    text(108, TOP + 39, "SHIELDRUNNER", PBLUE)
 
     rect(0, TOP + 48, W, TOP + 49, PBLUE)
     rect(0, TOP + 49, W, TOP + 50, GREY)

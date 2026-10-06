@@ -18,25 +18,24 @@ is in [plan.md](plan.md).
 | 1 | Scroll engine: firmware off, Mode 0, double buffer, CRTC hardware scroll over a wrap-around map | **Done** |
 | 2 | HUD split and rasters: fixed HUD via CRTC split, raster sky, separate HUD palette | **Done** |
 | 3 | Sprite engine: masked, pre-shifted sprites, tile restore, foreground layer; Runner + 8 enemies at 25 fps | **Done** |
-| 4 | Player | Next |
-| 5 | Generators and radar | |
+| 4 | Player: riding, jumping, shooting, dismount/mount, whistle; compiled sprites in extra RAM | **Done** |
+| 5 | Generators and radar | Next |
 | 6 | Enemies | |
 | 7 | First planet complete | |
-| 8 | Banking and loading | |
+| 8 | Banking and loading (sprites already load into extra RAM) | |
 | 9 | Planets 2-4 | |
 | 10 | Release | |
 
-The current build is the engine's load test: a 1024-pixel test planet
-(starfield, mountains, ground, four generators, foreground crystal spires
-and column markers) scrolls at 25 fps and wraps seamlessly above a fixed HUD
-(radar with a live view marker, timer and energy placeholders). The Runner
-and its rider gallop in place while 8 drifters swoop around the view, off
-both edges and behind the spires. That is the most sprites the game is
-meant to show at once, and it holds 25 fps with every frame inside budget.
-The sky is coloured in three raster bands and the HUD has its own
-16-colour palette.
+The current build is playable as a toy: ride the Runner around a
+1024-pixel test planet (starfield, mountains, ground, four generators,
+foreground crystal spires, column markers), jump, shoot, get off, walk,
+whistle the Runner over and climb back on, under a fixed HUD (radar with a
+live view marker, spare Runners, timer and energy placeholders). Eight
+drifters swoop around the view as the enemy load test: the most sprites
+the game is meant to show at once. They do nothing yet. Everything holds
+25 fps with every frame inside budget.
 
-![Milestone 3 in the emulator](docs/milestone3.png)
+![Milestone 4 in the emulator](docs/milestone4.png)
 
 ## Building
 
@@ -51,8 +50,8 @@ You need:
 make
 ```
 
-This generates the test planet, sprite and HUD art, converts them, assembles
-the game and writes `build/shield.dsk`.
+This generates the test planet, sprite and HUD art, converts them, compiles
+the sprites, assembles the game and writes `build/shield.dsk`.
 
 ## Running
 
@@ -63,14 +62,19 @@ on a real machine and type:
 RUN"SHIELD
 ```
 
-Controls for the test build (joystick or cursor keys):
+`SHIELD.BAS` loads the sprites into the 6128's extra 64K, then runs
+`GAME.BIN`. A CPC 6128 (or 464 with 64K expansion) is needed.
 
-| Input | Action |
-|-------|--------|
-| Left / Right | Scroll left / right (the direction is kept after release) |
-| Down | Stop (the Runner stops running) |
+Controls (joystick, or cursor keys with space to fire):
 
-It starts scrolling right on its own.
+| Input | Mounted | On foot |
+|-------|---------|---------|
+| Left / Right | Ride (the Runner speeds up, skids round to turn, coasts to a stop) | Walk (slowly; the screen does not scroll) |
+| Up | Jump | Aim up |
+| Fire | Shoot forward | Shoot forward |
+| Fire + Up | Shoot diagonally up | Shoot straight up, or diagonally with Left / Right |
+| Fire + Down | Get off | Get on (standing at the Runner) |
+| W | | Whistle: the Runner runs over, or a spare comes in if it is gone |
 
 ## Testing
 
@@ -99,11 +103,17 @@ what it should be:
 
 It also reports the least spare time seen in a 25 fps frame.
 
+`tests/test_player.py` drives the player through riding, jumping, shooting
+(forward, diagonal, up), getting off, walking to the edge of the view,
+whistling, getting back on and calling spare Runners, checking the game's
+state after each action and every frame's picture as above.
+
 Other tools:
 
 - `tests/profile.py` samples the program counter and shows where the time
   goes per routine; `tests/profile.py --work` measures every frame's work
-  against the 39,936 us of two frames (currently median 33.5K, worst 37.4K).
+  against the 39,936 us of two frames, riding at full speed and firing
+  (currently median 32K, worst 36.6K).
 - `tests/calibrate_rasters.py` shows where raster colour changes land in the
   scanline; it was used to tune the delays in `src/system.asm`.
 
@@ -150,13 +160,18 @@ eight lines show only pen 0, so it needs no waiting; the playfield was cut
 to 17 rows to make that line fall inside the HUD. The VSYNC interrupt puts
 the playfield palette back.
 
-**Sprites.** Software sprites, masked and pre-shifted: each frame is stored as
-drawn and shifted one pixel right, so any x is drawn with whole bytes. Pen 0
-is transparent and the AND mask of every sprite byte comes from a 256-byte
-table, so sprites store pixels only. Sprites live in world coordinates and
-are clipped to the left and right of the view; a sprite row that would cross
-a 256-byte boundary of the screen is split in two, so the inner loop steps
-with `INC L` (13 NOPs per byte, entered Duff-style for the row's width).
+**Sprites.** Software sprites, pre-shifted: each frame is stored as drawn and
+shifted one pixel right, so any x is drawn with whole bytes, pen 0
+transparent. `tools/spritec.py` compiles every frame into straight-line Z80:
+`LD (HL),n` for solid bytes, `AND`/`OR` with immediates for bytes with
+transparent pixels, nothing for empty ones, walking each line in whichever
+direction is closer so there is no rewind, and stepping to the next line
+with a single test for the character row. The code and the raw pixels live
+in the 6128's extra RAM banks, paged in at `&4000` while sprites are drawn
+(the CRTC keeps showing the HUD from base RAM there). A sprite clipped at the
+edge of the view, or one with a line running off the end of the 2K screen
+ring (rare), is drawn by a generic masked loop from the raw pixels instead,
+with the masks from a 256-byte table. Sprites live in world coordinates.
 
 Each screen buffer keeps the sprites it shows and their cell layout (which
 map columns and character rows they cover). Before the buffer is drawn
@@ -164,18 +179,26 @@ again, the cells under its old sprites are restored from the map, only on
 the lines the sprite covered; there is no saved background. Then the new
 sprites are drawn, and the foreground tiles under them are drawn again
 through their masks, so sprites pass behind them, as in Pete Green's 1988
-routine. While mounted, the Runner and rider are one combined sprite.
+routine. While mounted, the Runner and rider are one combined sprite;
+frames facing left are mirrored copies.
 
-**Frame budget** (worst frame in the load test, NOPs of 39,936): sprite
-drawing about 11K, restore about 10K, two new scroll columns about 5K,
-interrupts about 2.5K, foreground up to 3.5K when sprites pass behind it.
+**Player.** Positions are in eighths of a pixel, so speeds can be
+fractional: the Runner accelerates to 4 pixels a frame (the scroll speed)
+and the camera moves a column a frame to keep it centred; on foot the
+camera stops. Bolts are sprites too (up to 4).
+
+**Frame budget** (riding at full speed and firing, NOPs of 39,936): restore
+about 10K, two new scroll columns about 5K, sprite drawing about 4K
+(compiled; more when sprites are clipped), interrupts about 2.5K,
+foreground up to 3.5K when sprites pass behind it, game logic about 2K.
+Median 32K, worst 36.6K: the next optimisation target is the restore.
 
 **Tiles.** A tile is one CRTC character: 4 Mode 0 pixels by 8 lines, 16 bytes.
 The map is stored column-major, one byte per cell, with a table of column
 start addresses. `tools/png2tiles.py` converts any indexed PNG (pen =
 palette index, RGB matched to the nearest CPC colour) into tiles, map and
 palette, plus the foreground overlays from a second mask image;
-`tools/png2spr.py` converts a sprite sheet; `tools/png2scr.py` converts a
+`tools/spritec.py` compiles a sprite sheet; `tools/png2scr.py` converts a
 160-pixel-wide PNG into run-length encoded screen layout (used for the HUD).
 
 ## Layout
@@ -186,20 +209,23 @@ palette, plus the foreground overlays from a second mask image;
 | `src/scroll.asm` | Column drawing, buffer catch-up and flips |
 | `src/system.asm` | Interrupt handler: CRTC split, rasters, flips; keyboard and joystick |
 | `src/sprites.asm` | Sprite engine: restore, masked drawing, foreground |
-| `src/demo.asm` | The milestone 3 load test: Runner and 8 drifters |
+| `src/player.asm` | The player: riding, on foot, bolts, whistle, camera; the sprite list |
+| `src/demo.asm` | The enemy load test: 8 drifters |
 | `src/hud.asm` | HUD setup and radar marker |
 | `src/macros.asm` | Shared macros |
 | `src/hw.asm` | Hardware ports and constants |
 | `tools/gen_testplanet.py` | Generates the test planet image and its foreground mask |
 | `tools/gen_sprites.py` | Generates the sprite sheet |
 | `tools/gen_hud.py` | Generates the HUD image |
-| `tools/gen_tables.py` | Sprite mask table and demo paths |
+| `tools/gen_tables.py` | Sprite mask table and drifter paths |
+| `tools/spritec.py` | Sprite compiler: code and data for the extra RAM banks |
+| `tools/mkdisc.py` | Builds the disc: BASIC loader, sprite banks, game |
 | `tools/png2tiles.py` | PNG to Mode 0 tiles, map, palette and foreground overlays |
-| `tools/png2spr.py` | Sprite sheet to pre-shifted Mode 0 sprites |
 | `tools/png2scr.py` | PNG to run-length encoded Mode 0 screen layout and palette |
 | `tools/cpcpal.py` | CPC colours and Mode 0 byte packing |
 | `tests/test_screen.py` | Headless frame-by-frame screen test on CRTC types 0, 1 and 2 |
 | `tests/calibrate_rasters.py` | Shows where raster changes land in the scanline |
+| `tests/test_player.py` | Headless test of every player action |
 | `tests/profile.py` | Sampling profiler and per-frame work measurement |
 | `tests/harness.py` | Boots the disc in the headless emulator |
 | `assets/` | Source art |
@@ -210,10 +236,12 @@ palette, plus the foreground overlays from a second mask image;
 |-------|-----|
 | `&0038` | Interrupt handler vector |
 | `&0040-&01FF` | Stack |
-| `&0200-&3FFF` | Code, tables, tiles, sprites, map, palettes (nearly full) |
+| `&0200-&3FFF` | Code, tables, tiles, map, palettes (about 14K used) |
 | `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block); the rest of block 0 holds start-up and demo data, the other blocks are free |
 | `&8000-&BFFF` | Playfield buffer 2 |
 | `&C000-&FFFF` | Playfield buffer 1 |
+
+| Extra RAM 4-6 | Sprites: compiled routines and raw pixels (35K) |
 
 The CRTC always reads base RAM, so the HUD stays on screen when one of the
 6128's extra banks is paged in at `&4000`.

@@ -1,33 +1,27 @@
-; Milestone 3 sprite load test: the Runner with its rider (one combined
-; sprite while mounted), fixed on screen
-; while the planet scrolls, and 8 drifters swooping around the view on
-; looping paths that take them past both edges and behind the foreground
-; spires. This is the most sprites the game is meant to show at once.
+; Load test: 8 drifters swooping around the view on looping paths that take
+; them past both edges and behind the foreground spires, the most enemies
+; the game is meant to show at once. They stand in for the enemies of
+; milestone 6 and do nothing yet.
 
 NUM_DRIFTERS  equ 8
-RUNNER_X      equ 64        ; screen pixel
-MOUNTED_Y     equ 73        ; the Runner's feet on the crust, rider on top
 DRIFTER_X_BIAS equ 12       ; demo_x holds screen x + 12
 
-; Write this frame's sprites into the back buffer's list.
+; Append the drifters to the sprite list (IX, from list_begin).
 demo_update:
     ld hl,demo_t
     inc (hl)
     ld hl,(scroll_pos)
     add hl,hl
     add hl,hl
-    ld (demo_vx),hl
     ld de,-DRIFTER_X_BIAS
     add hl,de
     ld (.vx+1),hl
-    ; drifters: frames alternate every 4 ticks, out of step with neighbours
+    ; frames alternate every 4 ticks, out of step with the neighbours
     ld a,(demo_t)
     rrca
     rrca
     and 1
     ld c,a
-    ld ix,(back_list)
-    inc ix
     ld hl,demo_phase
     ld b,NUM_DRIFTERS
 .drifter:
@@ -65,29 +59,9 @@ demo_update:
     ld de,REC_SIZE
     add ix,de
     djnz .drifter
-
-    ; the Runner and rider, legs moving while the view scrolls
-    ld a,(scroll_dir)
-    or a
-    jr z,.still
-    ld a,(demo_legs)
-    inc a
-    and 3
-    ld (demo_legs),a
-.still:
-    ld a,(demo_legs)
-    add a,SPR_MOUNTED0
-    ld (ix+0),a
-    ld hl,(demo_vx)
-    ld de,RUNNER_X
-    add hl,de
-    ld a,h
-    and 3
-    ld (ix+2),a
-    ld (ix+1),l
-    ld (ix+3),MOUNTED_Y
-    ld a,NUM_DRIFTERS+1
-    ld hl,(back_list)
+    ld hl,list_count
+    ld a,(hl)
+    add a,NUM_DRIFTERS
     ld (hl),a
     ret
 
@@ -99,5 +73,3 @@ n=0
     db (n*32)&255,(n*45)&255
 n=n+1
     rend
-demo_legs: db 0
-demo_vx:   dw 0

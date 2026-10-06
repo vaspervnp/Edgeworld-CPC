@@ -1,79 +1,226 @@
 [
  {
-  "name": "runner0",
+  "name": "mounted0_r",
   "x": 0,
   "y": 0,
   "w": 16,
-  "h": 24
+  "h": 26
  },
  {
-  "name": "runner1",
+  "name": "mounted1_r",
   "x": 16,
   "y": 0,
   "w": 16,
-  "h": 24
+  "h": 26
  },
  {
-  "name": "runner2",
+  "name": "mounted2_r",
   "x": 32,
   "y": 0,
   "w": 16,
-  "h": 24
+  "h": 26
  },
  {
-  "name": "runner3",
+  "name": "mounted3_r",
   "x": 48,
+  "y": 0,
+  "w": 16,
+  "h": 26
+ },
+ {
+  "name": "runner0_r",
+  "x": 64,
   "y": 0,
   "w": 16,
   "h": 24
  },
  {
-  "name": "rider",
-  "x": 64,
+  "name": "runner1_r",
+  "x": 80,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "runner2_r",
+  "x": 96,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "runner3_r",
+  "x": 112,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "runner_stand_r",
+  "x": 128,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "rider_stand_r",
+  "x": 144,
+  "y": 0,
+  "w": 8,
+  "h": 12
+ },
+ {
+  "name": "rider_walk0_r",
+  "x": 152,
+  "y": 0,
+  "w": 8,
+  "h": 12
+ },
+ {
+  "name": "rider_walk1_r",
+  "x": 160,
+  "y": 0,
+  "w": 8,
+  "h": 12
+ },
+ {
+  "name": "rider_up_r",
+  "x": 168,
+  "y": 0,
+  "w": 8,
+  "h": 12
+ },
+ {
+  "name": "mounted0_l",
+  "x": 176,
+  "y": 0,
+  "w": 16,
+  "h": 26
+ },
+ {
+  "name": "mounted1_l",
+  "x": 192,
+  "y": 0,
+  "w": 16,
+  "h": 26
+ },
+ {
+  "name": "mounted2_l",
+  "x": 208,
+  "y": 0,
+  "w": 16,
+  "h": 26
+ },
+ {
+  "name": "mounted3_l",
+  "x": 224,
+  "y": 0,
+  "w": 16,
+  "h": 26
+ },
+ {
+  "name": "runner0_l",
+  "x": 240,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "runner1_l",
+  "x": 256,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "runner2_l",
+  "x": 272,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "runner3_l",
+  "x": 288,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "runner_stand_l",
+  "x": 304,
+  "y": 0,
+  "w": 16,
+  "h": 24
+ },
+ {
+  "name": "rider_stand_l",
+  "x": 320,
+  "y": 0,
+  "w": 8,
+  "h": 12
+ },
+ {
+  "name": "rider_walk0_l",
+  "x": 328,
+  "y": 0,
+  "w": 8,
+  "h": 12
+ },
+ {
+  "name": "rider_walk1_l",
+  "x": 336,
+  "y": 0,
+  "w": 8,
+  "h": 12
+ },
+ {
+  "name": "rider_up_l",
+  "x": 344,
   "y": 0,
   "w": 8,
   "h": 12
  },
  {
   "name": "drifter0",
-  "x": 72,
+  "x": 352,
   "y": 0,
   "w": 8,
   "h": 10
  },
  {
   "name": "drifter1",
-  "x": 80,
+  "x": 360,
   "y": 0,
   "w": 8,
   "h": 10
  },
  {
-  "name": "mounted0",
-  "x": 88,
+  "name": "shot_h",
+  "x": 368,
   "y": 0,
-  "w": 16,
-  "h": 26
+  "w": 4,
+  "h": 2
  },
  {
-  "name": "mounted1",
-  "x": 104,
+  "name": "shot_v",
+  "x": 372,
   "y": 0,
-  "w": 16,
-  "h": 26
+  "w": 2,
+  "h": 4
  },
  {
-  "name": "mounted2",
-  "x": 120,
+  "name": "shot_d",
+  "x": 374,
   "y": 0,
-  "w": 16,
-  "h": 26
+  "w": 4,
+  "h": 4
  },
  {
-  "name": "mounted3",
-  "x": 136,
+  "name": "shot_dl",
+  "x": 378,
   "y": 0,
-  "w": 16,
-  "h": 26
+  "w": 4,
+  "h": 4
  }
 ]

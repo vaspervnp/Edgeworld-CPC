@@ -289,12 +289,19 @@ read_kb_line:
     out (c),c
     ret
 
-; Collect joystick 0 and the cursor keys into joy_state:
-; bit0 up, 1 down, 2 left, 3 right, 4 fire (1 = pressed).
+; Collect joystick 0 and the keys into joy_state (1 = pressed): bit 0 up,
+; 1 down, 2 left, 3 right (joystick or cursor keys), 4 fire (either
+; joystick button or space), 5 whistle (W).
 read_input:
     ld a,KB_LINE_JOY0
     call read_kb_line
     cpl
+    ld e,a
+    and %00110000           ; both fire buttons count as fire
+    jr z,.no_button
+    set 4,e
+.no_button:
+    ld a,e
     and %00011111
     ld e,a
     ld a,KB_LINE_CURSOR1
@@ -324,6 +331,12 @@ read_input:
     jr c,.no_fire
     set 4,e
 .no_fire:
+    ld a,KB_LINE_W
+    call read_kb_line
+    bit 3,a
+    jr nz,.no_whistle
+    set 5,e
+.no_whistle:
     ld a,e
     ld (joy_state),a
     ret

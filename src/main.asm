@@ -1,10 +1,10 @@
 ; Shieldrunner for the Amstrad CPC 6128.
-; Milestone 3: scrolling playfield over a wrap-around planet, a fixed HUD
-; below it (CRTC split), a raster sky, and the sprite engine carrying the
-; Runner, its rider and 8 enemies.
+; Milestone 4: the player (riding, jumping, shooting, dismounting,
+; whistling) on the scrolling planet with its fixed HUD, raster sky and
+; sprite engine, with 8 drifters as the enemy load test.
 ;
-; Controls: left/right (joystick or cursor keys) pick the scroll direction,
-; down stops. It scrolls right on its own until told otherwise.
+; Controls (joystick or cursor keys, space = fire, W = whistle): see
+; player.asm.
 
     include "hw.asm"
     include "../build/testplanet.inc"
@@ -33,6 +33,8 @@ start:
     ld hl,pf_palette
     call set_palette
     call hud_init
+    call player_init
+    call hud_spares
     ld hl,0
     call scroll_init
     call hud_update
@@ -42,24 +44,7 @@ start:
 
 main_loop:
     call read_input
-    ld a,(joy_state)
-    bit 3,a
-    jr z,.not_right
-    ld a,1
-    ld (scroll_dir),a
-.not_right:
-    ld a,(joy_state)
-    bit 2,a
-    jr z,.not_left
-    ld a,-1
-    ld (scroll_dir),a
-.not_left:
-    ld a,(joy_state)
-    bit 1,a
-    jr z,.not_down
-    xor a
-    ld (scroll_dir),a
-.not_down:
+    call player_update      ; also sets scroll_dir
     ; scroll_pos += scroll_dir (sign extended)
     ld a,(scroll_dir)
     ld e,a
@@ -69,7 +54,10 @@ main_loop:
     ld hl,(scroll_pos)
     add hl,de
     ld (scroll_pos),hl
+    call list_begin
     call demo_update
+    call player_sprites
+    call list_end
     call scroll_update_back
     call render_sprites
     call flip_and_wait
@@ -82,6 +70,7 @@ main_loop:
     include "scroll.asm"
     include "hud.asm"
     include "sprites.asm"
+    include "player.asm"
     include "demo.asm"
 
     align 256
@@ -108,8 +97,6 @@ t=t+1
     align 256
 fg_data:
     incbin "../build/testplanet.fg"
-sprite_data:
-    incbin "../build/sprites.spr"
     include "../build/sprites.frames"
 map_data:
     incbin "../build/testplanet.map"

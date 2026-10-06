@@ -5,6 +5,8 @@ Runs the game in the headless emulator, samples the program counter every
 few microseconds and charges each sample to the routine (global label) it
 falls in. Prints the share of time and NOPs per 2-frame (25 fps) game frame.
 
+Both ride right at full speed, firing (the busiest case).
+
 With --work, instead measures each game frame's work: the time from a flip
 to the main loop queueing the next buffer (interrupts included), against
 the 39,936 us of two frames.
@@ -22,6 +24,10 @@ FRAME_PAIR_US = 2 * 19968
 
 def main(frames=100, step=3):
     g = Game(1)
+    import cpc
+    g.c.key_down(cpc.KEY_RIGHT)
+    g.c.key_down(" ")
+    g.c.run_frames(30)
     labels = sorted((addr, name) for name, addr in g.sym.items()
                     if "." not in name and addr < 0x4000)
     addrs = [a for a, _ in labels]
@@ -44,6 +50,10 @@ def main(frames=100, step=3):
 
 def work(frames=300):
     g = Game(1)
+    import cpc
+    g.c.key_down(cpc.KEY_RIGHT)         # ride at full speed (the busiest case)
+    g.c.key_down(" ")                   # and keep firing
+    g.c.run_frames(30)
     flips = g.sym["FLIPS"]
     pending = g.sym["FLIP_PENDING"]
     t, start, times = 0, None, []
