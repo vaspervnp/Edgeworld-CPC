@@ -8,12 +8,7 @@
 ; player.asm.
 
     include "hw.asm"
-    include "../build/testplanet.inc"
     include "../build/sprites.inc"
-
-; The map lives in extra RAM bank 7 (MAP_BANK), paged in at #4000 while
-; the scroll and sprite code read it; tools/mkdisc.py loads it there.
-map_data equ #4000
 
 LOAD_ADDR equ #0200
 STACK_TOP equ #0200
@@ -39,6 +34,9 @@ start:
     call set_palette
     call sound_init
     call hud_init
+    ld a,1
+    call load_planet        ; the first planet, from disc (enables interrupts)
+    di
     ld hl,0
     call scroll_init        ; the CRTC's first setup, before the split runs
     ld a,1
@@ -73,48 +71,30 @@ main_loop:
     call hud_update
     call game_tick
     jr z,main_loop
+    call next_planet        ; planet clear, and another to go: NZ
+    jr nz,main_loop
     call hiscore_check
     jr game_loop
 
     include "macros.asm"
+    include "planet.asm"
     include "system.asm"
     include "scroll.asm"
     include "hud.asm"
     include "sprites.asm"
     include "player.asm"
-    include "planet.asm"
     include "generators.asm"
     include "enemies.asm"
     include "sound.asm"
     include "logo.asm"
+    include "disc.asm"
 
     align 256
 mask_table:
     incbin "../build/tables.mask"
-tile_attr:
-    incbin "../build/testplanet.attr"
-col_fg:
-    incbin "../build/testplanet.colfg"
-tile_data:                  ; 256-aligned, up to 256 tiles
-    incbin "../build/testplanet.tiles"
-    align 256
-tile_lo:                    ; address of each tile, low bytes then high
-t=0
-    repeat 256
-    db (tile_data+t*16)&#FF
-t=t+1
-    rend
-t=0
-    repeat 256
-    db (tile_data+t*16)>>8
-t=t+1
-    rend
-    align 256
-fg_data:
-    incbin "../build/testplanet.fg"
+col_fg:                     ; the planet's, per map column (see planet.asm)
+    ds 256
     include "../build/sprites.frames"
-pf_palette:
-    incbin "../build/testplanet.pal"
 hud_palette:
     incbin "../build/hud.pal"
 end_of_code:

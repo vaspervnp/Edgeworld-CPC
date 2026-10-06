@@ -22,14 +22,14 @@ is in [plan.md](plan.md).
 | 5 | Generators and radar: drain, unstable/drained states, breaches, recharge minigame | **Done** |
 | 6 | Enemies: drifters, trackers, crawlers, throwers, breach carrier; collisions and energy | **Done** |
 | 7 | First planet complete: timer, win/lose, title, high scores, music and sound effects; playtest bots | **Done** |
-| 8 | Banking and loading (sprites, map and logo already load into extra RAM) | Next |
-| 9 | Planets 2-4 | |
+| 8 | Banking and loading: planets in extra RAM, loaded from disc by the game's own floppy code | **Done** |
+| 9 | Planets 2-4 | Next |
 | 10 | Release | |
 
-The first planet is a complete game. The title screen shows the logo over
-the planet, how to play and the high-score table. You ride the Runner
-around the 1024-pixel planet, jump, shoot, get off, walk, whistle the Runner
-over and climb back on, and you have **three minutes** to hold the shield:
+The title screen shows the logo over the first planet, how to play and the
+high-score table. You ride the Runner around the 1024-pixel planet, jump,
+shoot, get off, walk, whistle the Runner over and climb back on, and you
+have **three minutes** (on the first planet) to hold the shield:
 keep its four generators charged until the time runs out. Each drains at
 its own rate; the radar shows them green (stable), flashing (unstable) or
 red (drained, letting a breach in), and the core of the one in view does the
@@ -55,9 +55,16 @@ initials. Music plays on the title and in the game, with jingles for
 winning and losing and sound effects on the third channel. Everything
 holds 25 fps with every frame inside budget.
 
+Clearing a planet takes you to the next, loaded from disc meanwhile, with
+your score and spare Runners and a full energy bar; clearing the last one
+ends the game. Each planet brings its own map, tiles, palette, sky, time,
+generator drain rates and enemy pressure and mix. For now there are two:
+the first, and a placeholder second that reuses its art in a frozen
+palette, with tougher numbers; milestone 9 gives planets 2-4 their own.
+
 ![The title screen](docs/title.png)
 
-![Playing the first planet](docs/milestone7.png)
+![Playing the second planet](docs/milestone8.png)
 
 ## Building
 
@@ -84,9 +91,10 @@ on a real machine and type:
 RUN"SHIELD
 ```
 
-`SHIELD.BAS` loads the sprites, the map and the logo into the 6128's extra
-64K, then runs `GAME.BIN`. A CPC 6128 (or 464 with 64K expansion) is
-needed. Press fire on the title screen to start.
+`SHIELD.BAS` loads the sprites and the logo into the 6128's extra 64K, then
+runs `GAME.BIN`, which loads the planets itself (`PLANET1.BIN`, ...) as they
+are played, so leave the disc in. A CPC 6128 (or 464 with 64K expansion)
+is needed. Press fire on the title screen to start.
 
 Controls (joystick, or cursor keys with space to fire):
 
@@ -146,6 +154,12 @@ music (read back from the AY registers), the high-score page, starting, the
 countdown, a sound effect on channel C, clearing the planet (enemies blown
 up, the bonus, the message), entering initials and the table's order, a
 second game that starts afresh, and the shield failing.
+`tests/test_planets.py` checks the planets from disc: bank 7 holding the
+first planet's file at boot and its header taken into base RAM, clearing
+it into the second (loaded meanwhile, score and Runners kept, its frames
+checked pixel for pixel in its own palette), a load with the disc taken
+out (the border flashes and it keeps trying until the disc is back), and
+the end of the last planet.
 
 `tests/playtest.py` checks for the "rolling demo" problem, that the game
 does not play itself, with bots that play whole games:
@@ -246,9 +260,37 @@ frames facing left are mirrored copies.
 one is ever on screen: its core is drawn in pen 2, which nothing else uses,
 and the game sets that palette entry each frame to show the generator's
 state, or the pump pulse while it is being recharged. The radar dots and
-the SHIELD gauge are redrawn in the HUD only when they change. Their
-positions, drain rates and starting charges are planet data
-(`src/planet.asm`).
+the SHIELD gauge are redrawn in the HUD only when they change. Their drain
+rates and starting charges are planet data; their positions are the same
+on every planet (the HUD radar and the core pen rely on them).
+
+**Planets.** `tools/mkplanet.py` packs a planet into a bank image from its
+art (converted by `tools/png2tiles.py`) and a description in
+`assets/planets/planetN.json` (time, generators, enemy pressure and mix,
+sky, optionally a palette): at `&4000` the map, at `&5100` a 52-byte header
+of the parameters, then the tile address tables, the tile attributes, the
+foreground columns, the tiles at `&5600` and the foreground overlays at
+`&6600`. The game loads it into extra RAM bank 7 when the planet is played,
+and copies the header and the foreground columns into base RAM (the sprite
+code reads the latter with a sprite bank paged in). The map, tiles and
+overlays are only read with bank 7 paged in, by the column drawing and the
+sprite restore and foreground passes. Sprites share the playfield
+palette: they use pens 3-15, so a planet's palette that changes those also
+recolours the sprites (the placeholder second planet does; milestone 9
+will settle which pens planets may change).
+
+**Loading from disc.** The firmware is gone once the game runs (the screen
+buffers sit over its memory), so `src/disc.asm` drives the uPD765 floppy
+controller directly: motor on, recalibrate, read the AMSDOS directory
+(track 0, sectors `&C1`-`&C4`), find the file's 1K blocks extent by
+extent, read their sectors one command each into the blacked-out screen
+pages, then copy the file past its 128-byte AMSDOS header into bank 7.
+Interrupts are off meanwhile (a byte comes every 32 us and the transfer
+loop takes 24), so the CRTC gets a plain frame with no rows shown and the
+sound is silenced; afterwards the interrupt waits for a VSYNC and takes the
+split up again. A read that fails (no disc, a bad sector, an overrun)
+starts the whole load again with the border flashing red. The loader is
+about 600 bytes.
 
 **Player.** Positions are in eighths of a pixel, so speeds can be
 fractional: the Runner accelerates to 4 pixels a frame (the scroll speed)
@@ -322,7 +364,8 @@ palette, plus the foreground overlays from a second mask image;
 | `src/player.asm` | The player: riding, on foot, recharging, bolts, whistle, camera; the sprite list |
 | `src/generators.asm` | Shield generators: drain, states, breaches, core colour, radar dots, SHIELD gauge |
 | `src/enemies.asm` | Enemies, missiles, explosions, energy cells; spawner; collisions, hits, ENERGY bar |
-| `src/planet.asm` | Planet data: generator positions, drain rates, starting charges, enemy pressure and mix, time |
+| `src/planet.asm` | The planet bank's layout and the current planet's parameters (from its header) |
+| `src/disc.asm` | Floppy controller driver: loads planet files into bank 7 |
 | `src/game.asm` | Starting and ending a game, the countdown, time and score in the HUD, bonus, end messages |
 | `src/title.asm` | Title screen, high-score table, initials entry |
 | `src/text.asm` | HUD text: font, centred lines, numbers |
@@ -337,10 +380,12 @@ palette, plus the foreground overlays from a second mask image;
 | `tools/gen_logo.py` | Generates the title logo |
 | `tools/gen_music.py` | The music and sound effects, as data for `src/sound.asm` |
 | `tools/font.py` | The 3x5 font, for the HUD art, the game and the tests |
-| `tools/pack_bank.py` | Packs files into an extra RAM bank image (the map and logo in bank 7) |
+| `tools/pack_bank.py` | Packs files into an extra RAM bank image (the last sprites and the logo in bank 6) |
+| `tools/mkplanet.py` | Packs a planet (art and description) into a bank image |
+| `assets/planets/` | The planets' descriptions |
 | `tools/gen_tables.py` | Sprite mask table |
 | `tools/spritec.py` | Sprite compiler: code and data for the extra RAM banks |
-| `tools/mkdisc.py` | Builds the disc: BASIC loader, extra RAM banks, game |
+| `tools/mkdisc.py` | Builds the disc: BASIC loader, extra RAM banks, game, planets |
 | `tools/png2tiles.py` | PNG to Mode 0 tiles, map, palette and foreground overlays |
 | `tools/png2scr.py` | PNG to run-length encoded Mode 0 screen layout and palette |
 | `tools/cpcpal.py` | CPC colours and Mode 0 byte packing |
@@ -350,6 +395,7 @@ palette, plus the foreground overlays from a second mask image;
 | `tests/test_generators.py` | Headless test of the generators and the recharge minigame |
 | `tests/test_enemies.py` | Headless test of enemies, hits, energy and game over |
 | `tests/test_game.py` | Headless test of the title, music, countdown, winning, losing and high scores |
+| `tests/test_planets.py` | Headless test of loading planets from disc and going from one to the next |
 | `tests/playtest.py` | Bots that play whole games: the "rolling demo" check and difficulty |
 | `tests/profile.py` | Sampling profiler and per-frame work measurement |
 | `tests/harness.py` | Boots the disc in the headless emulator |
@@ -361,12 +407,12 @@ palette, plus the foreground overlays from a second mask image;
 |-------|-----|
 | `&0038` | Interrupt handler vector |
 | `&0040-&01FF` | Stack |
-| `&0200-&3FFF` | Code, tables, tiles, palettes, sound driver and music (about 14.5K used, up to `&3BDC`) |
+| `&0200-&3FFF` | Code, tables, sound driver and music, disc loader, the current planet's header (about 12K used, up to `&322C`) |
 | `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block). The rest of the blocks holds code and data that never page a bank and that the interrupt does not use: block 0 the packed HUD and the text code, block 1 game.asm, block 2 title.asm; blocks 3-7 are free |
-| `&8000-&BFFF` | Playfield buffer 2 |
+| `&8000-&BFFF` | Playfield buffer 2 (and, with buffer 1, where a planet file is read before it goes into bank 7) |
 | `&C000-&FFFF` | Playfield buffer 1 |
-| Extra RAM 4-6 | Sprites: compiled routines and raw pixels (41K, 45 frames) |
-| Extra RAM 7 | The planet map (4.3K) and, at `&2000`, the title logo (2.3K) |
+| Extra RAM 4-6 | Sprites: compiled routines and raw pixels (41K, 45 frames); at `&2800` in bank 6, the title logo (2.3K) |
+| Extra RAM 7 | The current planet, loaded from disc: map, header, tiles, foreground (10.4K for the first) |
 
 The CRTC always reads base RAM, so the HUD stays on screen when one of the
 6128's extra banks is paged in at `&4000`.

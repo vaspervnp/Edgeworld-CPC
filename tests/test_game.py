@@ -137,8 +137,16 @@ def test():
     f.wait_text(49, f"SCORE {score:05}0", PEN_DIGITS)
     print(f"planet clear: ok (bonus {score})")
 
-    # It makes the table: initials, chosen with up/down and fire.
-    g.wait_state(ST_ENTRY, 400)
+    # On to the second planet (tests/test_planets.py); losing its shield
+    # ends the game with the score so far, which makes the table: initials,
+    # chosen with up/down and fire.
+    for _ in range(1500):
+        f.frames(1)
+        if g.byte("PLANET_NUM") == 2 and g.byte("GAME_STATE") == ST_PLAY:
+            break
+    assert g.byte("PLANET_NUM") == 2 and g.word("SCORE") == score
+    g.c.write_ram(g.sym["GEN_CHARGE"], bytes(2 * NUM_GENS))
+    g.wait_state(ST_ENTRY, 600)
     f.screen = None
     rank = g.byte("HS_NEW")
     assert rank == 1, rank      # between 3000 and 2500

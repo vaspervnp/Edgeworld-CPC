@@ -23,6 +23,10 @@ REPEAT_GAP  equ 5           ; ...and between repeats
 ; Show the title until the player starts a game.
 title_screen:
     call screen_off
+    ld a,(current_planet)   ; the title shows the first planet
+    cp 1
+    ld a,1
+    call nz,load_planet
     ld hl,TITLE_POS
     call scroll_init
     ld a,CORE_STABLE

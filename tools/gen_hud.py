@@ -65,7 +65,7 @@ def main(out):
     text(8, ROW_B, "RUNNERS", BYELLOW)
     text(76, ROW_B, "ENERGY", BYELLOW)
     rect(102, ROW_B, 152, ROW_B + 5, RADAR_BG)
-    text(8, ROW_C, "PLANET 1", BYELLOW)
+    text(8, ROW_C, "PLANET", BYELLOW)       # the number is drawn by the game
     text(76, ROW_C, "SHIELD", BYELLOW)
     rect(GAUGE_X0, ROW_C, GAUGE_X1, ROW_C + 5, RADAR_BG)
 

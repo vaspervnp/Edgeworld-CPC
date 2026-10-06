@@ -97,8 +97,6 @@ player_init:
     djnz .shot
     dec a                   ; what is held at the start is not a new press
     ld (joy_prev),a
-    ld a,START_SPARES
-    ld (pl_spares),a
     ret
 
 ; One frame of the player: input, movement, bolts, camera (sets scroll_dir).

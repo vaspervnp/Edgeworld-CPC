@@ -106,12 +106,9 @@ enemies_init:
     ld (game_over),a
     ld (carrier_alive),a
     ld (carrier_cool),a
-    ld h,a
-    ld l,a
-    ld (score),hl
     ld a,#FF
     ld (energy_shown),a
-    ld a,SPAWN_EVERY
+    ld a,(spawn_every)
     ld (spawn_timer),a
     jp energy_bar
 
@@ -662,9 +659,11 @@ spawn_update:
     ld hl,spawn_timer
     dec (hl)
     ret nz
-    ld (hl),SPAWN_EVERY
+    ld a,(spawn_every)
+    ld (hl),a
     call count_hostile
-    cp AMBIENT_MAX
+    ld hl,ambient_max
+    cp (hl)
     ret nc
     ; a type from the planet's mix, from either edge of the view
     call rand

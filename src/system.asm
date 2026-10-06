@@ -437,11 +437,11 @@ pf_crtc:           dw 0     ; playfield address for the next frame A
 idle_last:         dw 0     ; idle loop turns before the last flip
 idle_min:          dw #FFFF ; the fewest seen
 joy_state:         db 0
-pf_pal_src:        dw pf_palette+1  ; pens 1-15 the interrupts load
-hud_pal_src:       dw hud_palette+1
-screen_is_off:     db 0
+pf_pal_src:        dw black_pal+1   ; pens 1-15 the interrupts load
+hud_pal_src:       dw black_pal+1
+screen_is_off:     db 1             ; off until the first planet is in
 sky_saved:         ds 3
 black_pal:         ds 16,#54
 
 ; Sky pen colour for lines 0-33, 34-85 and 86-143.
-sky_colours:       db #54, #44, #58
+sky_colours:       db #54, #54, #54  ; the planet's (screen_on), or black

@@ -56,6 +56,7 @@ GAUGE_LINES, GAUGE_X, GAUGE_BYTES = range(49, 54), 104, 24
 NUM_GENS, GEN_ENTRY = 4, 5
 ENERGY_LINES, ENERGY_X, ENERGY_BYTES = range(41, 46), 102, 25
 TEXT_LINE, TIME_X, SCORE_X, DIGIT_PEN = 33, 28, 100, 4   # time "M:SS", score digits
+PLANET_LINE, PLANET_X, LABEL_PEN = 49, 36, 6                # "PLANET n"
 END_MESSAGE_LINES = range(31, 56)   # HUD lines the end of a game writes over
 HUD_PEN_OF = {0xF0: 5, 0x3C: 6, 0xFC: 7, 0xC0: 1}  # HUD bytes the game writes
 
@@ -120,10 +121,13 @@ class Expected:
                     pens[y][x] = self.planet[y][x0 + x]
         return [bytes(self.colour(y, p) for p in row) for y, row in enumerate(pens)]
 
-    def hud_line(self, y, pos, spares, gens, secs=0, score=0):
+    def hud_line(self, y, pos, spares, gens, secs=0, score=0, planet=1):
         """HUD line y; gens = (radar dot bytes, gauge byte, energy byte) as
         the game shows them; secs and score as the time and score shown."""
         line = bytearray(self.hud[y])
+        if y - PLANET_LINE in range(5):
+            pens = font.rows(str(planet), LABEL_PEN)[y - PLANET_LINE]
+            line[PLANET_X:PLANET_X + len(pens)] = bytes(self.hud_pal[p] for p in pens)
         if y - TEXT_LINE in range(5):
             row = y - TEXT_LINE
             for x, text in ((TIME_X, f"{secs // 60}:{secs % 60:02}"), (SCORE_X, f"{score:05}")):
@@ -213,10 +217,11 @@ class Screen:
         score = self.game.word("SCORE_SHOWN")
         texts = {(secs, score), (secs + 1, score), (secs, self.game.word("SCORE"))}
         ending = self.game.byte("END_TIMER") != 0
+        planet = self.game.byte("PLANET_NUM")
         for y in range(HUD_H):
             if ending and y in END_MESSAGE_LINES:
                 continue        # the end message (tests/test_game.py)
-            options = {self.exp.hud_line(y, p, n, g, t, sc) for p in (pos, pos - 1, pos + 1)
+            options = {self.exp.hud_line(y, p, n, g, t, sc, planet) for p in (pos, pos - 1, pos + 1)
                        for n in (spares, spares + 1) for g in gen_options for t, sc in texts}
             if shown[PLAY_H + y] not in options:
                 raise AssertionError(f"HUD line {y} is wrong at position {pos}")

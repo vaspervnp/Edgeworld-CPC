@@ -1,0 +1,14 @@
+{
+  "name": "Placeholder second planet: the first planet's art in a frozen palette, harder (milestone 9 gives it its own tiles)",
+  "art": "testplanet",
+  "time": 200,
+  "shield_fails": 3,
+  "spawn_every": 65,
+  "ambient_max": 4,
+  "mix": ["tracker", "drifter", "tracker", "crawler", "thrower", "thrower", "drifter", "crawler"],
+  "generators": [[32, 26, 49152], [96, 24, 57344], [160, 32, 40960], [224, 28, 53248]],
+  "sky": ["black", "bright_blue", "sky_blue"],
+  "palette": ["black", "black", "bright_green", "pastel_blue", "bright_white", "blue",
+              "bright_cyan", "pastel_cyan", "white", "white", "sky_blue", "cyan",
+              "bright_green", "bright_magenta", "bright_cyan", "pastel_magenta"]
+}

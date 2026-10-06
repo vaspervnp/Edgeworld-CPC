@@ -79,6 +79,11 @@ class Game:
     def bytes(self, name, n):
         return self.c.read_ram(self.sym[name], n)
 
+    def bank_bytes(self, bank, offset, n):
+        """n bytes of 16K RAM bank `bank` (0-7; 4-7 are the extra 64K) from offset."""
+        ptr = cpc._lib.cpcemu_ram_ptr(self.c._h, bank)
+        return bytes(ptr[offset:offset + n])
+
     def next_frame(self):
         """Run to just after the next VSYNC, when a whole frame is in the framebuffer."""
         # Wait for exactly n+1: the counter's two bytes are written one at a

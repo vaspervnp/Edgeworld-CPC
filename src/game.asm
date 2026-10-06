@@ -22,15 +22,50 @@ ROW_B_LINE   equ 41
 ROW_C_LINE   equ 49
 TIME_BYTE    equ 14         ; "M:SS" after "TIME "
 SCORE_BYTE   equ 50         ; 5 digits after "SCORE ", then a fixed 0
+PLANET_BYTE  equ 18         ; the digit after "PLANET "
 PEN_DIGITS   equ 4          ; HUD pens: bright white
 PEN_LABEL    equ 6          ; bright yellow
 PEN_GOOD     equ 5          ; bright green
 PEN_BAD      equ 7          ; bright red
 PEN_DIM      equ 2          ; grey
 
-; Set up a new game on the planet and show it.
+; A new game: the first planet, no score, the spare Runners.
 game_start:
+    ld a,1
+    ld (planet_num),a
+    ld hl,0
+    ld (score),hl
+    ld a,START_SPARES
+    ld (pl_spares),a
+    jr planet_start
+
+; After a game's end: if a planet was cleared and there is another, start
+; it (keeping the score and spare Runners) and return NZ.
+next_planet:
+    ld a,(game_over)
+    cp END_CLEAR
+    jr nz,.over
+    ld a,(planet_num)
+    cp NUM_PLANETS
+    jr nc,.over
+    inc a
+    ld (planet_num),a
+    call planet_start
+    or 1
+    ret
+.over:
+    xor a
+    ret
+
+; Set up planet planet_num (loading it from disc if need be) and show it.
+planet_start:
+    ld a,ST_BOOT            ; (for tests: not playing until it shows)
+    ld (game_state),a
     call screen_off
+    ld a,(planet_num)
+    ld hl,current_planet
+    cp (hl)
+    call nz,load_planet
     xor a
     ld (end_timer),a
     call hud_init
@@ -38,6 +73,7 @@ game_start:
     call hud_spares
     call gen_init
     call enemies_init
+    call draw_planet
     ld hl,(rand_seed)       ; when fire was pressed makes each game different
     ld a,(frame_count)
     xor l
@@ -47,7 +83,7 @@ game_start:
     inc l
 .seeded:
     ld (rand_seed),hl
-    ld hl,PLANET_TIME
+    ld hl,(planet_time)
     ld (time_secs),hl
     ld a,FPS
     ld (time_tick),a
@@ -60,11 +96,12 @@ game_start:
     call hud_update
     xor a
     ld (frames_since_flip),a
-    ld a,ST_PLAY
-    ld (game_state),a
     ld a,SONG_GAME
     call music_play
-    jp screen_on
+    call screen_on
+    ld a,ST_PLAY
+    ld (game_state),a
+    ret
 
 ; One game frame of the game's course, after the frame's work.
 ; Out: Z while the game goes on, NZ when it is over and its message has
@@ -88,9 +125,10 @@ game_tick:
 .up:
     inc hl
     djnz .gen
-    ld a,c
-    cp SHIELD_FAILS
-    jr c,.shield_up
+    ld a,(shield_fails)
+    dec a
+    cp c                    ; C > fails - 1: down
+    jr nc,.shield_up
     ld a,END_SHIELD
     jr .end_as
 .shield_up:
@@ -157,6 +195,20 @@ game_tick:
 .over:
     or 1
     ret
+
+; The planet's number after "PLANET ".
+draw_planet:
+    ld a,(planet_num)
+    add a,'0'
+    ld (num_buf),a
+    xor a
+    ld (num_buf+1),a
+    ld a,ROW_C_LINE
+    ld c,PLANET_BYTE
+    call hud_addr
+    ld de,num_buf
+    ld a,PEN_LABEL
+    jp draw_text
 
 ; The time left as M:SS after "TIME ".
 draw_time:
@@ -300,6 +352,11 @@ end_row:
     jp nz,draw_centred
     ld c,PEN_GOOD
     ld de,msg_clear
+    ld a,(planet_num)
+    cp NUM_PLANETS
+    ld a,b
+    jp c,draw_centred
+    ld de,msg_all_clear
     jp draw_centred
 .second:
     ld a,e
@@ -349,6 +406,7 @@ msg_game_over: db "GAME OVER",0
 msg_energy:    db "THE RIDER HAS FALLEN",0
 msg_shield:    db "THE SHIELD HAS FAILED",0
 msg_clear:     db "PLANET CLEAR!",0
+msg_all_clear: db "EVERY PLANET IS SAFE!",0
 msg_bonus:     db "BONUS ",0
 msg_score:     db "SCORE ",0
 
@@ -358,4 +416,5 @@ end_timer:   db 0           ; game frames of the end message left (0: playing)
 score_shown: dw 0
 bonus:       dw 0
 game_state:  db ST_BOOT
+planet_num:  db 1           ; the planet being played, 1 on
 line_buf:    ds 41
