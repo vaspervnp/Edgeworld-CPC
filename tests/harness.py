@@ -32,19 +32,40 @@ def symbols():
     return out
 
 
+ST_TITLE, ST_PLAY, ST_ENTRY = 1, 2, 3     # game_state (src/game.asm)
+
+
 class Game:
-    def __init__(self, crtc_type=1):
+    def __init__(self, crtc_type=1, start=True):
+        """Boot the disc; with start, press fire on the title and wait for play."""
         self.sym = symbols()
         self.c = cpc.CPC()
         self.c.crtc_type = crtc_type
         self.c.run_frames(150)
         self.c.insert_disc(DSK)
         self.c.type_text('RUN"SHIELD\n')
-        isr = self.sym["ISR"]
-        vector = bytes([0xC3, isr & 0xFF, isr >> 8])
-        for _ in range(3000):
+        self.wait_state(ST_TITLE, 3000)
+        if start:
+            self.start()
+
+    def wait_state(self, state, frames):
+        for _ in range(frames):
             self.c.run_frames(1)
-            if self.c.read_ram(0x38, 3) == vector and self.word("FLIPS") > 2:
+            if self.byte("GAME_STATE") == state:
+                return
+        raise AssertionError(f"game_state never became {state}, is {self.byte('GAME_STATE')}")
+
+    def start(self):
+        """Press and let go of fire on the title; wait until the game runs."""
+        self.c.run_frames(10)
+        self.c.key_down(" ")
+        self.c.run_frames(6)
+        self.c.key_up(" ")
+        self.wait_state(ST_PLAY, 100)
+        flips = self.word("FLIPS")
+        for _ in range(100):
+            self.c.run_frames(1)
+            if self.word("FLIPS") > flips + 2:
                 return
         raise AssertionError("game did not start")
 

@@ -1,9 +1,8 @@
 ; Shieldrunner for the Amstrad CPC 6128.
-; Milestone 6: the player (riding, jumping, shooting, dismounting,
-; whistling, recharging), the shield generators (drain, radar, gauge,
-; breaches) and the enemies (five kinds, missiles, waves, collisions,
-; energy) on the scrolling planet with its fixed HUD, raster sky and
-; sprite engine.
+; Milestone 7: the first planet complete: title screen, high scores, the
+; countdown, winning and losing, music and sound effects, around the
+; player, the shield generators and the enemies on the scrolling planet
+; with its fixed HUD, raster sky and sprite engine.
 ;
 ; Controls (joystick or cursor keys, space = fire, W = whistle): see
 ; player.asm.
@@ -36,20 +35,19 @@ start:
     ld hl,isr
     ld (#0039),hl
     im 1
-    ld hl,pf_palette
+    ld hl,black_pal
     call set_palette
+    call sound_init
     call hud_init
-    call player_init
-    call hud_spares
-    call gen_init
-    call enemies_init
     ld hl,0
-    call scroll_init
-    call hud_update
+    call scroll_init        ; the CRTC's first setup, before the split runs
     ld a,1
     ld (split_on),a
     ei
 
+game_loop:
+    call title_screen
+    call game_start
 main_loop:
     call read_input
     call player_update      ; also sets scroll_dir
@@ -73,7 +71,10 @@ main_loop:
     call flip_and_wait
     call swap_buffers
     call hud_update
-    jr main_loop
+    call game_tick
+    jr z,main_loop
+    call hiscore_check
+    jr game_loop
 
     include "macros.asm"
     include "system.asm"
@@ -84,6 +85,8 @@ main_loop:
     include "planet.asm"
     include "generators.asm"
     include "enemies.asm"
+    include "sound.asm"
+    include "logo.asm"
 
     align 256
 mask_table:
@@ -120,9 +123,18 @@ end_of_code:
 ; The HUD page (#4000) uses the first HUD_ROWS*80 bytes of each 2K block;
 ; the rest of block 0 holds data needed only at start-up, since the 6128's
 ; extra banks page in over #4000.
+; Code and data that never page a bank in and that the interrupt does not
+; use go in the spare space of the HUD page's 2K blocks, too.
 HUD_PAGE_FREE equ #4000+HUD_ROWS*80
     org HUD_PAGE_FREE
 hud_data:
     incbin "../build/hud.rle"
+    include "text.asm"
+    assert $ <= #4800
+    org #4800+HUD_ROWS*80
+    include "game.asm"
+    assert $ <= #5000
+    org #5000+HUD_ROWS*80
+    include "title.asm"
+    assert $ <= #5800
 end_of_program:
-    assert end_of_program <= #4800

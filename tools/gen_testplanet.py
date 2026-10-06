@@ -2,9 +2,8 @@
 """Generate the test planet strip used by the scroll engine milestones.
 
 A 1024x136 Mode 0 image (256 x 17 tiles) that wraps seamlessly: starfield,
-a mountain range, ground, four shield generators and column markers on the
-bottom row (a block at column 0, a tick every 8 columns) so scrolling and
-wrap-around can be checked by eye.
+a mountain range, ground with boulders, four shield generators and a seam
+of ore in the bedrock.
 
 The sky is a single pen (1); raster interrupts recolour it in bands. The
 generators' cores are pen 2 and nothing else is: the game recolours it to
@@ -122,15 +121,13 @@ def main(out, fg_out):
                 fg[x, y] = 1
     fg_img.save(fg_out)
 
-    # Column markers on the bottom row.
-    for c in range(0, COLS, 8):
-        rect(c * 4, 130, c * 4 + 2, 135, BRED)
-    rect(0, 128, 8, 136, BYELLOW)
-
-    # Every pen but the sky on the last line, so a HUD palette switch that
-    # comes too early shows (tests/test_screen.py).
-    for x in range(8, W):
-        px[x, H - 1] = [p for p in range(16) if p != SKY][x % 15]
+    # A seam of ore in the bedrock, in several pens on the last line, so a
+    # HUD palette switch that comes too early shows (tests/test_screen.py).
+    seam = [RED, MAUVE, RED, YELLOW, RED, GREY]
+    for x in range(W):
+        px[x, H - 1] = seam[x % len(seam)]
+        if x % 12 in (3, 4):
+            px[x, H - 2] = MAUVE
 
     img.save(out)
 

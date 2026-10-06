@@ -22,11 +22,15 @@ that the whole 200-line picture is exactly what it should be:
 """
 import json
 import os
+import sys
 
 from PIL import Image
 
 from harness import Game, ROOT, X0, PIX, VIEW_W
 import cpc
+
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import font  # noqa: E402
 
 PLANET = os.path.join(ROOT, "assets", "testplanet.png")
 PLANET_FG = os.path.join(ROOT, "assets", "testplanet_fg.png")
@@ -44,13 +48,15 @@ MARKER_LINES = range(24, 27)        # HUD lines with the radar view marker
 REC_SIZE = 4
 RADAR_X0, RADAR_X1 = 16, 144
 VIEW_CENTRE = 20
-SPARES_LINES = range(47, 52)        # HUD lines with the spare Runner icons
+SPARES_LINES = range(41, 46)        # HUD lines with the spare Runner icons
 SPARES_X, SPARES_STEP, MAX_SPARES = 40, 6, 5
 CORE_PEN = 2
 DOT_LINES = range(18, 22)           # radar dots of the generators
-GAUGE_LINES, GAUGE_X, GAUGE_BYTES = range(47, 52), 104, 24
+GAUGE_LINES, GAUGE_X, GAUGE_BYTES = range(49, 54), 104, 24
 NUM_GENS, GEN_ENTRY = 4, 5
-ENERGY_LINES, ENERGY_X, ENERGY_BYTES = range(35, 40), 102, 25
+ENERGY_LINES, ENERGY_X, ENERGY_BYTES = range(41, 46), 102, 25
+TEXT_LINE, TIME_X, SCORE_X, DIGIT_PEN = 33, 28, 100, 4   # time "M:SS", score digits
+END_MESSAGE_LINES = range(31, 56)   # HUD lines the end of a game writes over
 HUD_PEN_OF = {0xF0: 5, 0x3C: 6, 0xFC: 7, 0xC0: 1}  # HUD bytes the game writes
 
 
@@ -114,10 +120,15 @@ class Expected:
                     pens[y][x] = self.planet[y][x0 + x]
         return [bytes(self.colour(y, p) for p in row) for y, row in enumerate(pens)]
 
-    def hud_line(self, y, pos, spares, gens):
+    def hud_line(self, y, pos, spares, gens, secs=0, score=0):
         """HUD line y; gens = (radar dot bytes, gauge byte, energy byte) as
-        the game shows them."""
+        the game shows them; secs and score as the time and score shown."""
         line = bytearray(self.hud[y])
+        if y - TEXT_LINE in range(5):
+            row = y - TEXT_LINE
+            for x, text in ((TIME_X, f"{secs // 60}:{secs % 60:02}"), (SCORE_X, f"{score:05}")):
+                pens = font.rows(text, DIGIT_PEN)[row]
+                line[x:x + len(pens)] = bytes(self.hud_pal[p] for p in pens)
         dots, gauge, energy = gens
         if y in ENERGY_LINES:
             n, colour = energy & 31, (5, 6, 7)[energy >> 5]
@@ -197,9 +208,16 @@ class Screen:
                 self.game.byte("ENERGY_SHOWN"))
         gen_options = {gens, self.last_gens or gens}
         self.last_gens = gens
+        # the time and score are redrawn as they change: shown, or about to be
+        secs = self.game.word("TIME_SECS")
+        score = self.game.word("SCORE_SHOWN")
+        texts = {(secs, score), (secs + 1, score), (secs, self.game.word("SCORE"))}
+        ending = self.game.byte("END_TIMER") != 0
         for y in range(HUD_H):
-            options = {self.exp.hud_line(y, p, n, g) for p in (pos, pos - 1, pos + 1)
-                       for n in (spares, spares + 1) for g in gen_options}
+            if ending and y in END_MESSAGE_LINES:
+                continue        # the end message (tests/test_game.py)
+            options = {self.exp.hud_line(y, p, n, g, t, sc) for p in (pos, pos - 1, pos + 1)
+                       for n in (spares, spares + 1) for g in gen_options for t, sc in texts}
             if shown[PLAY_H + y] not in options:
                 raise AssertionError(f"HUD line {y} is wrong at position {pos}")
         # Nothing but border colour left and right of the picture.

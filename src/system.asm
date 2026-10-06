@@ -21,6 +21,11 @@
 ;   index 4 (B row 0):  R7 = 13
 ;   index 5 (B row 6):  R4 = 21
 ;
+; The VSYNC interrupt also ticks the sound driver (sound.asm) at 50 Hz.
+; screen_off and screen_on black the picture out while the screens are
+; redrawn: the interrupts load their palettes through pf_pal_src and
+; hud_pal_src.
+;
 ; Rasters: the sky pen changes colour on lines 36 and 88, timed to land in
 ; the horizontal blank. The HUD palette is loaded by the interrupt on line
 ; 138, which is HUD line 2: the HUD's first 8 lines use pen 0 only, so the
@@ -140,7 +145,7 @@ isr_vsync:
     ld (flip_pending),a
 .palette:
     ; the screen is in its bottom border: put the playfield palette back
-    ld hl,pf_palette+1
+    ld hl,(pf_pal_src)
     ld bc,GA_PORT*256+1
     repeat 15
     out (c),c
@@ -153,6 +158,7 @@ isr_vsync:
     out (c),c
     ld a,(sky_colours)
     out (c),a
+    call sound_tick
     jp isr_exit
 
 ; B row 18: set up frame A.
@@ -211,7 +217,7 @@ isr_4:
     jp z,isr_exit
     ld a,R7_B
     CRTC_SET 7
-    ld hl,hud_palette+1
+    ld hl,(hud_pal_src)
     ld bc,GA_PORT*256+1
     repeat 15           ; pens 1-15, one every 13 us
     out (c),c
@@ -299,6 +305,8 @@ read_kb_line:
 ; 1 down, 2 left, 3 right (joystick or cursor keys), 4 fire (either
 ; joystick button or space), 5 whistle (W).
 read_input:
+    ld a,1
+    ld (psg_busy),a         ; the sound interrupt keeps off the PSG meanwhile
     ld a,KB_LINE_JOY0
     call read_kb_line
     cpl
@@ -345,6 +353,57 @@ read_input:
 .no_whistle:
     ld a,e
     ld (joy_state),a
+    xor a
+    ld (psg_busy),a
+    ret
+
+; Wait for the next VSYNC.
+wait_frame:
+    ld hl,frame_count
+    ld a,(hl)
+.wait:
+    cp (hl)
+    jr z,.wait
+    ret
+
+; Black the picture out (all pens, sky bands, HUD) from the next frame on,
+; and wait until a whole black frame has started.
+screen_off:
+    ld a,(screen_is_off)
+    or a
+    jr nz,.wait
+    inc a
+    ld (screen_is_off),a
+    ld hl,sky_colours
+    ld de,sky_saved
+    ld bc,3
+    ldir
+    ld hl,black_pal+1
+    ld (pf_pal_src),hl
+    ld (hud_pal_src),hl
+    ld a,#54
+    ld (sky_colours),a
+    ld (sky_colours+1),a
+    ld (sky_colours+2),a
+.wait:
+    call wait_frame
+    jp wait_frame
+
+; Show the picture again, from the next frame.
+screen_on:
+    ld a,(screen_is_off)
+    or a
+    ret z
+    xor a
+    ld (screen_is_off),a
+    ld hl,sky_saved
+    ld de,sky_colours
+    ld bc,3
+    ldir
+    ld hl,pf_palette+1
+    ld (pf_pal_src),hl
+    ld hl,hud_palette+1
+    ld (hud_pal_src),hl
     ret
 
 ; Load the 16 pens from HL and set the border to black.
@@ -378,6 +437,11 @@ pf_crtc:           dw 0     ; playfield address for the next frame A
 idle_last:         dw 0     ; idle loop turns before the last flip
 idle_min:          dw #FFFF ; the fewest seen
 joy_state:         db 0
+pf_pal_src:        dw pf_palette+1  ; pens 1-15 the interrupts load
+hud_pal_src:       dw hud_palette+1
+screen_is_off:     db 0
+sky_saved:         ds 3
+black_pal:         ds 16,#54
 
 ; Sky pen colour for lines 0-33, 34-85 and 86-143.
 sky_colours:       db #54, #44, #58

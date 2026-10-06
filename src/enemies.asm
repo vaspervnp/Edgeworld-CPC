@@ -52,13 +52,13 @@ CELL_ENERGY   equ 25
 MOUNTED_DAMAGE equ 4        ; rider energy lost when the Runner is hit
 RUNNER_HITS   equ 3
 INVULN_FRAMES equ 40
-SPAWN_EVERY   equ 60        ; frames between spawns
-AMBIENT_MAX   equ 4         ; enemies the spawner keeps around
 WAVE_SIZE     equ 3
 CARRIER_REST  equ 250       ; frames before another carrier may come
 DESPAWN_DIST  equ 320       ; pixels from the player: gone (not the carrier)
 CRAWL_PAST    equ 40        ; a crawler turns back this far past the player
 TRACK_SWING   equ 28        ; trackers sweep this far either side of it
+BOMB_GAP      equ 40        ; frames between a tracker's bombs...
+TRACK_HOVER   equ 20        ; ...the first of them hanging still
 ; (defined up here: rasm loses the sign of -NAME when NAME comes later)
 THROW_RANGE   equ 80        ; a thrower lobs at a player this near (higher
                             ; lobs would leave the top of the screen)
@@ -66,10 +66,10 @@ THROW_RANGE   equ 80        ; a thrower lobs at a player this near (higher
 ; Per type: first frame, width, height, hit points, damage on foot, points.
 TYPE_SIZE equ 6
 type_table:
-    db SPR_DRIFTER0, 8, 10, 1, 12, 1
-    db SPR_TRACKER0, 8, 8, 2, 10, 2
-    db SPR_CRAWLER0, 8, 8, 2, 12, 2
-    db SPR_THROWER0, 8, 12, 3, 12, 3
+    db SPR_DRIFTER0, 8, 10, 1, 8, 1
+    db SPR_TRACKER0, 8, 8, 2, 8, 2
+    db SPR_CRAWLER0, 8, 8, 2, 8, 2
+    db SPR_THROWER0, 8, 12, 3, 8, 3
     db SPR_CARRIER0, 16, 16, 12, 20, 20
     db SPR_BOOM0, 8, 8, 0, 0, 0
     db SPR_CELL, 4, 6, 0, 0, 0
@@ -106,6 +106,9 @@ enemies_init:
     ld (game_over),a
     ld (carrier_alive),a
     ld (carrier_cool),a
+    ld h,a
+    ld l,a
+    ld (score),hl
     ld a,#FF
     ld (energy_shown),a
     ld a,SPAWN_EVERY
@@ -351,6 +354,9 @@ update_drifter:
 ; Trackers sweep to and fro across the player, TRACK_SWING pixels either
 ; side, each on its own phase, bombing as they pass overhead.
 update_tracker:
+    ld a,(ix+5)             ; just bombed: it hangs there a moment (shoot it!)
+    cp BOMB_GAP-TRACK_HOVER
+    jr nc,.wait
     inc (ix+6)
     ld b,TRACK_SWING
     bit 6,(ix+6)
@@ -362,6 +368,7 @@ update_tracker:
     ld a,(ix+5)
     or a
     jr z,.ready
+.wait:
     dec (ix+5)
     ret
 .ready:
@@ -369,7 +376,7 @@ update_tracker:
     cp 6
     ret nc
     ; right overhead: a bomb
-    ld (ix+5),40
+    ld (ix+5),BOMB_GAP
     ld de,3
     ld c,8
     ld hl,M_BOMB+12*256     ; dy 3 lines a frame
@@ -642,6 +649,9 @@ update_missiles:
 ; Spawning.
 
 spawn_update:
+    ld a,(game_over)
+    or a
+    ret nz
     ld a,(spawn_on)
     or a
     ret z
@@ -976,6 +986,8 @@ collide_shots:
 ; The enemy at IX (type entry IY) is destroyed: points, an explosion,
 ; maybe an energy cell after it.
 kill_enemy:
+    ld a,SFX_BOOM
+    call sfx_play
     ld a,(iy+5)
     ld hl,(score)
     ld e,a
@@ -1004,10 +1016,10 @@ kill_enemy:
     ld (ix+3),a
     jr .boom
 .not_carrier:
-    call rand
-    and 3
+    call rand               ; one in three leaves a cell
+    cp 85
     ld a,0
-    jr nz,.drop
+    jr nc,.drop
     inc a
 .drop:
     ld (ix+7),a
@@ -1058,6 +1070,8 @@ collide_player:
     jr .next
 .cell:
     ld (ix+0),E_NONE
+    ld a,SFX_CELL
+    call sfx_play
     ld a,(pl_energy)
     add a,CELL_ENERGY
     cp MAX_ENERGY+1
@@ -1105,7 +1119,7 @@ collide_player:
     djnz .missile
     ret
 
-MISSILE_DAMAGE equ 10
+MISSILE_DAMAGE equ 8
 
 ; The player is hit for A energy on foot.
 player_hit:
@@ -1114,10 +1128,14 @@ player_hit:
     or a
     ret nz
     ld a,(pl_invuln)
-    or a
+    ld c,a
+    ld a,(game_over)        ; nothing hurts once the game is over
+    or c
     ret nz
     ld a,INVULN_FRAMES
     ld (pl_invuln),a
+    ld a,SFX_HIT
+    call sfx_play
     ld a,(pl_mode)
     cp MODE_FOOT
     jr z,.energy
@@ -1262,11 +1280,14 @@ enemy_sprites:
 
 ; The ENERGY bar in the HUD, if it changed: 25 bytes for full; green, then
 ; yellow below half, red below a quarter.
-ENERGY_LINE equ 35
+ENERGY_LINE equ 41
 ENERGY_BYTE equ 51
 ENERGY_BYTES equ 25
 
 energy_bar:
+    ld a,(end_timer)        ; the end message is over the HUD's text rows
+    or a
+    ret nz
     ld a,(pl_energy)
     srl a
     srl a

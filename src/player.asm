@@ -84,7 +84,19 @@ player_init:
     ld (pl_face),a
     ld (pl_speed),a
     ld (pl_jump),a
+    ld (pl_cool),a
+    ld (pl_stall),a
+    ld (pl_legs),a
+    ld (pl_walking),a
     ld (rn_state),a
+    ld hl,shots
+    ld b,MAX_SHOTS*SHOT_SIZE
+.shot:
+    ld (hl),a
+    inc hl
+    djnz .shot
+    dec a                   ; what is held at the start is not a new press
+    ld (joy_prev),a
     ld a,START_SPARES
     ld (pl_spares),a
     ret
@@ -198,6 +210,9 @@ update_mounted:
     xor a
 .jumping:
     ld (pl_jump),a
+    cp 1
+    ld a,SFX_JUMP
+    call z,sfx_play
 .shoot:
     call can_fire
     jr nz,.camera
@@ -343,10 +358,14 @@ update_charging:
     ld a,(pl_pulse)
     cp PULSE_WINDOW
     jr c,.miss
+    ld a,SFX_PUMP
+    call sfx_play
     ld de,PUMP
     call charge_gen
     jr .done
 .miss:
+    ld a,SFX_STALL
+    call sfx_play
     ld a,STALL_FRAMES
     ld (pl_stall),a
 .done:
@@ -462,6 +481,8 @@ distance_to_rider:
 
 ; W: call the waiting Runner over, or bring a spare one in from the edge.
 whistle:
+    ld a,SFX_WHISTLE
+    call sfx_play
     ld a,(rn_state)
     cp RUNNER_IDLE
     jr z,.come
@@ -719,6 +740,8 @@ add_shot:
     ld (ix+3),c
     ld (ix+4),e
     ld (ix+5),d
+    ld a,SFX_SHOT
+    call sfx_play
     ld a,FIRE_COOLDOWN
     ld (pl_cool),a
     ret
@@ -946,12 +969,15 @@ facing:
 ; ---------------------------------------------------------------------------
 ; HUD: spare Runners, as icons after the RUNNERS label.
 
-SPARES_LINE   equ 47        ; HUD lines 47-51 (see tools/gen_hud.py)
+SPARES_LINE   equ 41        ; HUD lines 41-45 (see tools/gen_hud.py)
 SPARES_X_BYTE equ 20        ; pixel 40, one icon every 3 bytes
 ICON_FULL     equ #F0       ; pen 5 (bright green), both pixels
 ICON_EMPTY    equ #0C       ; pen 2 (grey)
 
 hud_spares:
+    ld a,(end_timer)        ; the end message is over the HUD's text rows
+    or a
+    ret nz
     ld a,(pl_spares)
     ld c,a
     ld b,0                  ; icon number

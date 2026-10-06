@@ -24,14 +24,14 @@ CORE_PULSE    equ #4B       ; bright white: pump now
 CORE_STALL    equ #4C       ; bright red: pumped at the wrong time
 
 ; HUD (see tools/gen_hud.py): radar dots on lines 18-21, one byte each;
-; the gauge on lines 47-51, bytes 52-75.
+; the gauge on lines 49-53, bytes 52-75.
 DOT_LINE      equ 18
 DOT_BYTE0     equ 8         ; byte of the radar's first column; + (col+1)/4
 DOT_STABLE    equ #F0       ; pen 5, bright green
 DOT_UNSTABLE  equ #3C       ; pen 6, bright yellow
 DOT_DRAINED   equ #FC       ; pen 7, bright red
 DOT_OFF       equ #C0       ; pen 1, the radar's background
-GAUGE_LINE    equ 47
+GAUGE_LINE    equ 49
 GAUGE_BYTE    equ 52
 GAUGE_BYTES   equ 24
 GAUGE_EMPTY   equ #C0
@@ -112,6 +112,8 @@ gen_update:
     ld hl,breach_new
     or (hl)
     ld (hl),a
+    ld a,SFX_ALARM
+    call sfx_play
     pop hl
     jr .next
 .empty:
@@ -289,6 +291,9 @@ radar_dots:
 ; Redraw the SHIELD gauge if it changed: the charge of the generator in
 ; view, 24 bytes for full, in its state's colour.
 shield_gauge:
+    ld a,(end_timer)        ; the end message is over the HUD's text rows
+    or a
+    ret nz
     ld a,(near_gen)
     ld c,a
     ld b,0

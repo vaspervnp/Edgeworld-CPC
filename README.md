@@ -21,33 +21,43 @@ is in [plan.md](plan.md).
 | 4 | Player: riding, jumping, shooting, dismount/mount, whistle; compiled sprites in extra RAM | **Done** |
 | 5 | Generators and radar: drain, unstable/drained states, breaches, recharge minigame | **Done** |
 | 6 | Enemies: drifters, trackers, crawlers, throwers, breach carrier; collisions and energy | **Done** |
-| 7 | First planet complete | Next |
-| 8 | Banking and loading (sprites already load into extra RAM) | |
+| 7 | First planet complete: timer, win/lose, title, high scores, music and sound effects; playtest bots | **Done** |
+| 8 | Banking and loading (sprites, map and logo already load into extra RAM) | Next |
 | 9 | Planets 2-4 | |
 | 10 | Release | |
 
-The current build is playable as a toy: ride the Runner around a
-1024-pixel test planet, jump, shoot, get off, walk, whistle the Runner over
-and climb back on, and keep its four shield generators alive. Each drains at
+The first planet is a complete game. The title screen shows the logo over
+the planet, how to play and the high-score table. You ride the Runner
+around the 1024-pixel planet, jump, shoot, get off, walk, whistle the Runner
+over and climb back on, and you have **three minutes** to hold the shield:
+keep its four generators charged until the time runs out. Each drains at
 its own rate; the radar shows them green (stable), flashing (unstable) or
 red (drained, letting a breach in), and the core of the one in view does the
 same. To recharge one, get off, stand at it and hold down: it charges
 slowly, and fire pressed while its core flashes white pumps in a big boost,
-but pressed at the wrong time stalls it for a second. The SHIELD gauge in
-the HUD shows the charge of the generator in view.
+but pressed at the wrong time stalls it for a second.
 
 Enemies come in from the edges of the view: drifters that float at you and
-explode on contact, trackers that sweep overhead dropping bombs, crawlers
-that walk the ground (jump them), and throwers that lob rocks in an arc.
-When a generator drains, a wave pours out of the breach; with two drained,
-the breach carrier arrives, a big ship that takes 12 bolts and bombs from
-above. Mounted, hits fall on the Runner: three and it dies, throwing the
-rider off. On foot, every hit costs a lot of energy (the ENERGY bar), and
-at zero the game is over. Shot enemies score points and one in four leaves
-an energy cell that tops you up. Everything holds 25 fps with every frame
-inside budget.
+explode on contact, trackers that sweep overhead dropping bombs (they hang
+still for a moment after each bomb: shoot straight up), crawlers that walk
+the ground (jump them, or shoot them on foot), and throwers that lob rocks
+in an arc. When a generator drains, a wave pours out of the breach; with
+two drained, the breach carrier arrives, a big ship that takes 12 bolts and
+bombs from above. Mounted, hits fall on the Runner: three and it dies,
+throwing the rider off. On foot every hit costs energy; one shot enemy in
+three leaves an energy cell that gives some back.
 
-![Milestone 6 in the emulator](docs/milestone6.png)
+The game ends when the rider's energy runs out, when three generators are
+drained at once (the shield fails), or when the time runs out with the
+shield up: the planet is clear, and the energy left and the generators'
+charge make a bonus. A good score goes into the high-score table with your
+initials. Music plays on the title and in the game, with jingles for
+winning and losing and sound effects on the third channel. Everything
+holds 25 fps with every frame inside budget.
+
+![The title screen](docs/title.png)
+
+![Playing the first planet](docs/milestone7.png)
 
 ## Building
 
@@ -62,8 +72,8 @@ You need:
 make
 ```
 
-This generates the test planet, sprite and HUD art, converts them, compiles
-the sprites, assembles the game and writes `build/shield.dsk`.
+This generates the planet, sprite, HUD and logo art and the music, converts
+them, compiles the sprites, assembles the game and writes `build/shield.dsk`.
 
 ## Running
 
@@ -74,8 +84,9 @@ on a real machine and type:
 RUN"SHIELD
 ```
 
-`SHIELD.BAS` loads the sprites into the 6128's extra 64K, then runs
-`GAME.BIN`. A CPC 6128 (or 464 with 64K expansion) is needed.
+`SHIELD.BAS` loads the sprites, the map and the logo into the 6128's extra
+64K, then runs `GAME.BIN`. A CPC 6128 (or 464 with 64K expansion) is
+needed. Press fire on the title screen to start.
 
 Controls (joystick, or cursor keys with space to fire):
 
@@ -88,6 +99,8 @@ Controls (joystick, or cursor keys with space to fire):
 | Fire + Down | Get off | Get on (standing at the Runner) |
 | Down | | Hold at a generator to recharge it; Fire while its core flashes white to pump |
 | W | | Whistle: the Runner runs over, or a spare comes in if it is gone |
+
+For the high-score table, up and down choose a letter and fire takes it.
 
 ## Testing
 
@@ -108,7 +121,8 @@ what it should be:
   band, so a stale sprite, a missed restore, a wrong clip or a raster change
   that lands inside the picture fails;
 - the HUD is in its own palette, with the radar marker where the scroll
-  position says;
+  position says, and the bars, gauge, Runner icons, time and score as the
+  game says it shows them (in the font of `tools/font.py`);
 - the view moves exactly one column every two frames (25 fps), with no late
   buffer flips, scrolls left, right, stops, and wraps past the end of the
   planet;
@@ -127,13 +141,39 @@ minigame (slow charge, a pump in time, a stall, letting go).
 checks shooting them, hits mounted and on foot, jumping a crawler, tracker
 bombs killing the Runner, a thrower's rock, energy cells, the breach carrier
 and breach waves, the spawner's limits and game over.
+`tests/test_game.py` covers the game around them: the title screen and its
+music (read back from the AY registers), the high-score page, starting, the
+countdown, a sound effect on channel C, clearing the planet (enemies blown
+up, the bonus, the message), entering initials and the table's order, a
+second game that starts afresh, and the shield failing.
+
+`tests/playtest.py` checks for the "rolling demo" problem, that the game
+does not play itself, with bots that play whole games:
+
+| Bot | Plays | Must |
+|-----|-------|------|
+| idle | touches nothing | lose (energy gone, after about 0:40) |
+| gunner | rides laps firing, never recharges, cannot be hurt | lose (shield down at 1:21) |
+| keeper | recharges the weakest generator over and over, cannot be hurt | clear the planet (about 9 recharges) |
+| player | the keeper firing as it goes, and enemies can hurt it | (reported) |
+| skilled | the player, also jumping crawlers and turning to shoot what comes near | (reported) |
+
+`make test` runs the first three. The last two measure the difficulty;
+`--seed=N` changes the enemies. Over eight seeds the skilled bot cleared
+the planet three times and otherwise lasted 1:05 to 2:19 of the three
+minutes, which is about right for the first planet: it never dodges,
+aims carelessly and charges with enemies around, and a person does better.
+Tuning that came out of it: trackers hang still for a moment after each
+bomb so they can be shot from below, enemy pressure became planet data
+(one every 3 seconds, at most 3 about), and the shield fails at three
+drained generators, so camping at one generator does not work.
 
 Other tools:
 
 - `tests/profile.py` samples the program counter and shows where the time
   goes per routine; `tests/profile.py --work` measures every frame's work
   against the 39,936 us of two frames, riding at full speed and firing
-  (currently median 19.3K, worst 25.1K).
+  (currently median 21.8K, worst 26.5K).
 - `tests/calibrate_rasters.py` shows where raster colour changes land in the
   scanline; it was used to tune the delays in `src/system.asm`.
 
@@ -220,20 +260,48 @@ timer, animation and direction, cell drop) and 4 missiles, updated every
 frame through a jump table by type; a type table gives each its frame,
 size, hit points, damage and points. Collisions are box overlaps in world
 coordinates (x wraps at 1024). The spawner brings one from the planet's
-mix (`src/planet.asm`) every 60 frames while fewer than 4 are about; it
-also turns the generators' breach flags into waves and calls the carrier.
-Enemies far behind the player are dropped. Mounted, a hit costs the rider
-4 energy and the Runner one of its 3 hits; on foot, 10 to 20 depending on
-the enemy. After a hit the player flickers for 40 frames, untouchable.
+mix every 75 frames while fewer than 3 are about (planet data in
+`src/planet.asm`); it also turns the generators' breach flags into waves
+and calls the carrier. Enemies far behind the player are dropped. Mounted,
+a hit costs the rider 4 energy and the Runner one of its 3 hits; on foot,
+8 to 20 depending on the enemy. After a hit the player flickers for 40
+frames, untouchable.
+
+**The game around it.** `src/game.asm` starts a game, counts the time down
+(a second every 25 game frames), shows the time and score and ends the
+game: energy gone, three generators drained at once, or the time out with
+the shield up (planet clear: the energy left plus a quarter of the
+generators' charge is added as a bonus). The end message goes into the
+HUD's text rows one row a frame, so even that frame keeps its time, and the
+world goes on behind it for five seconds. `src/title.asm` has the title
+screen (the planet at scroll position 0 with the logo masked over its sky,
+and a HUD panel that turns between how to play and the high scores), the
+five-entry high-score table and the initials entry. Screens are redrawn
+behind a blackout: the interrupts load their palettes through pointers
+that `screen_off` points at a black palette. Text uses the 3x5 font of
+`tools/font.py`, 4 pixels (2 bytes) a character, drawn opaque in one pen.
+
+**Sound.** `src/sound.asm` is a small AY driver ticked at 50 Hz by the
+VSYNC interrupt. `tools/gen_music.py` writes the tunes (title, in-game,
+and the planet clear and game over jingles) as three note streams each,
+with volume-envelope instruments and loops, plus ten sound effects (shot,
+jump, explosion, hit, energy cell, whistle, pump, stall, breach alarm, the
+last ten seconds' tick) as a volume, period and noise setting per tick. An
+effect takes channel C over while it lasts, by priority. The game asks for
+music and effects by writing one byte that the next tick picks up, so the
+interrupt never sees a half-written request; the registers are written
+every tick except while the main code reads the keyboard, which goes
+through the same PSG port. It costs about 1.7K NOPs a game frame.
 
 **Frame budget** (riding at full speed and firing, NOPs of 39,936): restore
 about 10K, two new scroll columns about 5K, sprite drawing about 4K
 (compiled; more when sprites are clipped), interrupts about 2.5K,
-foreground up to 3.5K when sprites pass behind it, game logic about 3K.
-Measured end to end with `tests/profile.py --work` (flip to next buffer
-queued, interrupts included): median 19.3K, worst 25.1K of 39.9K us; the
-screen test's busiest frame, with the most enemies on screen, still leaves
-13.4K us spare. The restore stays the main optimisation target.
+foreground up to 3.5K when sprites pass behind it, game logic about 3K,
+sound about 1.7K. Measured end to end with `tests/profile.py --work` (flip
+to next buffer queued, interrupts included): median 21.8K, worst 26.5K of
+39.9K us; the screen test's busiest frame, with the most enemies on
+screen, still leaves 11K us spare. The restore stays the main
+optimisation target.
 
 **Tiles.** A tile is one CRTC character: 4 Mode 0 pixels by 8 lines, 16 bytes.
 The map is stored column-major, one byte per cell, with a table of column
@@ -254,16 +322,25 @@ palette, plus the foreground overlays from a second mask image;
 | `src/player.asm` | The player: riding, on foot, recharging, bolts, whistle, camera; the sprite list |
 | `src/generators.asm` | Shield generators: drain, states, breaches, core colour, radar dots, SHIELD gauge |
 | `src/enemies.asm` | Enemies, missiles, explosions, energy cells; spawner; collisions, hits, ENERGY bar |
-| `src/planet.asm` | Planet data: generator positions, drain rates, starting charges, enemy mix |
+| `src/planet.asm` | Planet data: generator positions, drain rates, starting charges, enemy pressure and mix, time |
+| `src/game.asm` | Starting and ending a game, the countdown, time and score in the HUD, bonus, end messages |
+| `src/title.asm` | Title screen, high-score table, initials entry |
+| `src/text.asm` | HUD text: font, centred lines, numbers |
+| `src/sound.asm` | AY music and sound effect driver |
+| `src/logo.asm` | Draws the title logo from extra RAM |
 | `src/hud.asm` | HUD setup and radar marker |
 | `src/macros.asm` | Shared macros |
 | `src/hw.asm` | Hardware ports and constants |
 | `tools/gen_testplanet.py` | Generates the test planet image and its foreground mask |
 | `tools/gen_sprites.py` | Generates the sprite sheet |
 | `tools/gen_hud.py` | Generates the HUD image |
+| `tools/gen_logo.py` | Generates the title logo |
+| `tools/gen_music.py` | The music and sound effects, as data for `src/sound.asm` |
+| `tools/font.py` | The 3x5 font, for the HUD art, the game and the tests |
+| `tools/pack_bank.py` | Packs files into an extra RAM bank image (the map and logo in bank 7) |
 | `tools/gen_tables.py` | Sprite mask table |
 | `tools/spritec.py` | Sprite compiler: code and data for the extra RAM banks |
-| `tools/mkdisc.py` | Builds the disc: BASIC loader, sprite banks, game |
+| `tools/mkdisc.py` | Builds the disc: BASIC loader, extra RAM banks, game |
 | `tools/png2tiles.py` | PNG to Mode 0 tiles, map, palette and foreground overlays |
 | `tools/png2scr.py` | PNG to run-length encoded Mode 0 screen layout and palette |
 | `tools/cpcpal.py` | CPC colours and Mode 0 byte packing |
@@ -272,6 +349,8 @@ palette, plus the foreground overlays from a second mask image;
 | `tests/test_player.py` | Headless test of every player action |
 | `tests/test_generators.py` | Headless test of the generators and the recharge minigame |
 | `tests/test_enemies.py` | Headless test of enemies, hits, energy and game over |
+| `tests/test_game.py` | Headless test of the title, music, countdown, winning, losing and high scores |
+| `tests/playtest.py` | Bots that play whole games: the "rolling demo" check and difficulty |
 | `tests/profile.py` | Sampling profiler and per-frame work measurement |
 | `tests/harness.py` | Boots the disc in the headless emulator |
 | `assets/` | Source art |
@@ -282,12 +361,12 @@ palette, plus the foreground overlays from a second mask image;
 |-------|-----|
 | `&0038` | Interrupt handler vector |
 | `&0040-&01FF` | Stack |
-| `&0200-&3FFF` | Code, tables, tiles, palettes (about 12.5K used, up to `&33DC`) |
-| `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block); the rest of block 0 holds start-up data, the other blocks are free |
+| `&0200-&3FFF` | Code, tables, tiles, palettes, sound driver and music (about 14.5K used, up to `&3BDC`) |
+| `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block). The rest of the blocks holds code and data that never page a bank and that the interrupt does not use: block 0 the packed HUD and the text code, block 1 game.asm, block 2 title.asm; blocks 3-7 are free |
 | `&8000-&BFFF` | Playfield buffer 2 |
 | `&C000-&FFFF` | Playfield buffer 1 |
 | Extra RAM 4-6 | Sprites: compiled routines and raw pixels (41K, 45 frames) |
-| Extra RAM 7 | The planet map (4.3K) |
+| Extra RAM 7 | The planet map (4.3K) and, at `&2000`, the title logo (2.3K) |
 
 The CRTC always reads base RAM, so the HUD stays on screen when one of the
 6128's extra banks is paged in at `&4000`.

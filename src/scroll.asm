@@ -85,7 +85,8 @@ draw_column:
     PAGE RAM_BASE
     ret
 
-; Fill both screen pages for scroll position HL and show the front one.
+; Fill both screen pages for scroll position HL and show the front one
+; (the game must not be flipping buffers meanwhile).
 scroll_init:
     ld (scroll_pos),hl
     ld (front_pos),hl
@@ -106,6 +107,11 @@ scroll_init:
     ld (front_layouts),hl
     ld hl,layouts_b
     ld (back_layouts),hl
+    xor a                   ; no sprites shown in either buffer
+    ld (list_a),a
+    ld (list_b),a
+    ld (layouts_a),a
+    ld (layouts_b),a
     ld a,(front_page)
     call fill_page
     ld a,(back_page)
@@ -115,6 +121,9 @@ scroll_init:
     ld a,(front_r12)
     call crtc_addr
     ld (pf_crtc),de
+    ld a,(split_on)         ; once the split runs, the interrupts set the CRTC
+    or a
+    ret nz
     jp crtc_init
 
 ; Draw all 40 visible columns of position (scroll_pos) into page A.

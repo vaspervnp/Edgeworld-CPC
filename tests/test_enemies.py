@@ -16,7 +16,7 @@ MS_SIZE, MAX_MISSILES = 7, 4
 BOMB, ROCK = 1, 2
 CRAWLER_Y, THROWER_Y, MOUNTED_Y = 90, 86, 73
 INVULN = 40
-AMBIENT_MAX = 4
+AMBIENT_MAX = 3
 POINTS = {DRIFTER: 1, TRACKER: 2, CRAWLER: 2, THROWER: 3, CARRIER: 20}
 
 
@@ -156,7 +156,7 @@ def test():
             break
     assert rocks and rocks[0][3] == -2 and rocks[0][4] < 0, rocks[:3]
     assert min(r[2] for r in rocks) < THROWER_Y - 10, "the rock did not arc"
-    assert p.b("PL_ENERGY") == energy - 10, "the rock missed"
+    assert p.b("PL_ENERGY") == energy - 8, "the rock missed"
     p.clear()
     p.settle()
     print("thrower's rock: ok")
@@ -218,7 +218,7 @@ def test():
         hostile = p.alive(DRIFTER, TRACKER, CRAWLER, THROWER)
         most = max(most, len(hostile))
         kinds |= {k for k, _, _ in hostile}
-    assert 3 <= most <= AMBIENT_MAX, most
+    assert 2 <= most <= AMBIENT_MAX, most
     assert len(kinds) >= 3, kinds
     p.poke("SPAWN_ON", 0)
     p.poke("GOD_MODE", 0)

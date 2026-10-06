@@ -10,6 +10,7 @@ import sys
 from PIL import Image
 
 from cpcpal import COLOURS
+import font
 
 W, H = 160, 64
 TOP = 8                   # blank lines on top; the art below is 56 lines
@@ -23,23 +24,9 @@ RADAR_X0, RADAR_X1 = 16, 144      # 128 pixels for 256 map columns
 RADAR_Y0, RADAR_Y1 = TOP + 8, TOP + 20
 GENERATOR_COLS = (32, 96, 160, 224)
 GAUGE_X0, GAUGE_X1 = 104, 152     # 24 bytes
-
-FONT = {
-    "0": ["111", "101", "101", "101", "111"], "1": ["010", "110", "010", "010", "111"],
-    "2": ["111", "001", "111", "100", "111"], "3": ["111", "001", "011", "001", "111"],
-    "4": ["101", "101", "111", "001", "001"], "5": ["111", "100", "111", "001", "111"],
-    "6": ["111", "100", "111", "101", "111"], "7": ["111", "001", "010", "010", "010"],
-    "8": ["111", "101", "111", "101", "111"], "9": ["111", "101", "111", "001", "111"],
-    ":": ["000", "010", "000", "010", "000"], " ": ["000"] * 5,
-    "D": ["110", "101", "101", "101", "110"], "E": ["111", "100", "110", "100", "111"],
-    "G": ["111", "100", "101", "101", "111"], "H": ["101", "101", "111", "101", "101"],
-    "I": ["111", "010", "010", "010", "111"], "L": ["100", "100", "100", "100", "111"],
-    "M": ["101", "111", "111", "101", "101"], "N": ["111", "101", "101", "101", "101"],
-    "R": ["110", "101", "110", "101", "101"], "S": ["111", "100", "111", "001", "111"],
-    "T": ["111", "010", "010", "010", "010"], "U": ["101", "101", "101", "101", "111"],
-    "Y": ["101", "101", "010", "010", "010"],
-}
-
+ROW_A, ROW_B, ROW_C = TOP + 25, TOP + 33, TOP + 41
+SCORE_X = 100                     # 5 digits drawn by the game, then a fixed 0
+BWHITE_DIGITS = 4
 
 def main(out):
     img = Image.new("P", (W, H), BLACK)
@@ -55,12 +42,7 @@ def main(out):
                 px[x, y] = pen
 
     def text(x, y, s, pen):
-        for ch in s:
-            for gy, row in enumerate(FONT[ch]):
-                for gx, bit in enumerate(row):
-                    if bit == "1":
-                        px[x + gx, y + gy] = pen
-            x += 4
+        font.draw(px, x, y, s, pen)
 
     rect(0, TOP, W, TOP + 1, GREY)
     rect(0, TOP + 1, W, TOP + 2, PBLUE)
@@ -74,18 +56,22 @@ def main(out):
         x = RADAR_X0 + (gc + 1) // 2
         rect(x, TOP + 10, x + 2, TOP + 14, BGREEN)
 
-    text(8, TOP + 27, "TIME 9:59", BYELLOW)
-    text(76, TOP + 27, "ENERGY", BYELLOW)
-    rect(102, TOP + 27, 152, TOP + 32, RADAR_BG)   # energy bar (src/enemies.asm)
-    text(8, TOP + 39, "RUNNERS", BYELLOW)    # spare Runner icons follow (src/player.asm)
-    # shield gauge of the generator in view (drawn by src/generators.asm)
-    text(76, TOP + 39, "SHIELD", BYELLOW)
-    rect(GAUGE_X0, TOP + 39, GAUGE_X1, TOP + 44, RADAR_BG)
+    # Three text rows (lines 33, 41 and 49); the game draws the time, the
+    # score, the Runner icons and the bars (see src/game.asm, player.asm,
+    # enemies.asm and generators.asm).
+    text(8, ROW_A, "TIME 0:00", BYELLOW)
+    text(76, ROW_A, "SCORE", BYELLOW)
+    text(SCORE_X, ROW_A, "000000", BWHITE_DIGITS)
+    text(8, ROW_B, "RUNNERS", BYELLOW)
+    text(76, ROW_B, "ENERGY", BYELLOW)
+    rect(102, ROW_B, 152, ROW_B + 5, RADAR_BG)
+    text(8, ROW_C, "PLANET 1", BYELLOW)
+    text(76, ROW_C, "SHIELD", BYELLOW)
+    rect(GAUGE_X0, ROW_C, GAUGE_X1, ROW_C + 5, RADAR_BG)
 
     rect(0, TOP + 48, W, TOP + 49, PBLUE)
     rect(0, TOP + 49, W, TOP + 50, GREY)
     img.save(out)
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
