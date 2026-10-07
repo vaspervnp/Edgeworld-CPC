@@ -7,10 +7,9 @@
 ; (W bytes per line) and shifted one pixel right (W+1 bytes), so any x can be
 ; drawn with whole bytes, both as raw pixels and as a compiled routine (see
 ; tools/spritec.py), in one of the 6128's extra RAM banks, paged in at
-; #4000 while sprites are drawn. Pen 0 is transparent: the generic loop
-; takes the AND mask of a sprite byte from mask_table and its pixels from
-; pixel_table (where pen 1 marks opaque black: outlines); compiled routines
-; carry their masks and pixels as immediates.
+; #4000 while sprites are drawn. Pen 0 is transparent, apart from the
+; sheet's opaque black (outlines): the raw data is (mask, pixels) byte
+; pairs, and compiled routines carry masks and pixels as immediates.
 ;
 ; Each screen buffer keeps the list of records it shows. Before the back
 ; buffer is drawn again, the cells under its old records are restored from
@@ -29,7 +28,7 @@ REC_SIZE    equ 4
 VIEW_BYTES  equ SCREEN_WORDS*2
 COPY_LINE   equ 12          ; bytes of code per line in copy_unroll
 OVL_LINE    equ 18          ; bytes of code per line in ovl_unroll
-SEG_BYTE    equ 12          ; bytes of code per byte in seg_unroll
+SEG_BYTE    equ 9           ; bytes of code per byte in seg_unroll
 LAYOUT_SIZE equ 8           ; bytes of a sprite layout (see layout:)
 
 ; Draw the frame's sprites into the back buffer: restore what it showed,
@@ -560,7 +559,8 @@ draw_sprite:
     ret nc
     jr .generic
 .clipped:
-    add a,e                 ; source += skipped bytes
+    add a,a                 ; source += skipped bytes (mask and pixels each)
+    add a,e
     ld e,a
     adc a,d
     sub e
@@ -721,6 +721,7 @@ db_n:
     pop bc                  ; source of the band
     push de                 ; source after it
     ld a,(ds_k)
+    add a,a
     add a,c
     ld e,a
     adc a,b
@@ -756,6 +757,7 @@ dl_setup:
     ld c,a
     ld a,(ds_w)
     sub c
+    add a,a                 ; two source bytes for each
     ld (dl_skip+1),a
     ; no source gap: jump over the skip
     jr nz,.gap
@@ -767,9 +769,9 @@ dl_setup:
     ld (dl_skip_jr+1),a
     ld a,c
     add a,a
-    add a,c
     add a,a
-    add a,a                 ; * SEG_BYTE
+    add a,a
+    add a,c                 ; * SEG_BYTE
     ld c,a
     ld a,seg_end&#FF
     sub c
@@ -782,22 +784,18 @@ dl_setup:
 ; Draw IYL sprite lines from DE to HL, stepping W bytes in the source and
 ; one pixel line (#800) on the screen per line.
 draw_lines:
-    ld b,mask_table>>8
 dl_line:
 dl_go:
     jp 0
 seg_unroll:
     repeat SPR_MAX_W
-    ld a,(de)
-    ld c,a
-    ld a,(bc)               ; mask for this sprite byte
+    ld a,(de)               ; the mask...
     and (hl)
+    inc de
+    ld c,a
+    ld a,(de)               ; ...and the pixels
+    or c
     ld (hl),a
-    inc b
-    ld a,(bc)               ; its pixels
-    or (hl)
-    ld (hl),a
-    dec b
     inc de
     inc l
     rend

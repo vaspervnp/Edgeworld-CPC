@@ -1,5 +1,5 @@
 PYTHON ?= python3
-VERSION := 1.1
+VERSION := 1.2
 export VERSION
 RASM   ?= rasm
 IDSK   ?= iDSK
@@ -51,7 +51,7 @@ $(BUILD)/sprites.inc: assets/sprites.png assets/sprites.json tools/spritec.py to
 	rm -f $(BUILD)/sprites.bank*.bin
 	$(PYTHON) tools/spritec.py assets/sprites.png assets/sprites.json $(BUILD)/sprites
 
-$(BUILD)/tables.mask $(BUILD)/tables.pixels &: tools/gen_tables.py | $(BUILD)
+$(BUILD)/tables.mask: tools/gen_tables.py | $(BUILD)
 	$(PYTHON) tools/gen_tables.py $(BUILD)/tables
 
 assets/hud.png: tools/gen_hud.py tools/font.py tools/cpcpal.py
@@ -61,7 +61,7 @@ $(BUILD)/hud.rle: assets/hud.png tools/png2scr.py tools/cpcpal.py | $(BUILD)
 	$(PYTHON) tools/png2scr.py $< $(BUILD)/hud
 
 $(BUILD)/shield.bin: $(SRC) $(BUILD)/hud.rle $(BUILD)/sprites.inc $(BUILD)/tables.mask \
-		$(BUILD)/tables.pixels $(BUILD)/logo.bin $(BUILD)/font.bin $(BUILD)/sound.inc
+		$(BUILD)/logo.bin $(BUILD)/font.bin $(BUILD)/sound.inc
 	$(RASM) src/main.asm -ob $(BUILD)/shield.bin -s -sa -os $(BUILD)/shield.sym
 
 # The disc: a BASIC loader (SHIELD.BAS) that loads the sprite banks into

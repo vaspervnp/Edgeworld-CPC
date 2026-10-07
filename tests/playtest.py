@@ -29,6 +29,7 @@ FPS = 25
 NUM_GENS = 4
 GEN_ENTRY = 5
 MODE_MOUNTED, MODE_FOOT, MODE_MOUNTING, MODE_CHARGING = range(4)
+RUNNER_MID, SADDLE = 12, 8         # the ridden Runner's middle, the rider on it
 RUNNER_IDLE, RUNNER_COMING = 1, 2
 TRACKER, CRAWLER, THROWER, BOOM = 2, 3, 4, 6
 PULSE_WINDOW = 24
@@ -91,9 +92,9 @@ class Bot:
         mode = g.byte("PL_MODE")
         px = self.word("PL_X") // 8
         if mode == MODE_MOUNTED:
-            near = self.nearest_hostile(px + 8)
+            near = self.nearest_hostile(px + RUNNER_MID)
             face = -1 if g.byte("PL_FACE") else 1
-            if near and near[2] == CRAWLER and 8 < near[0] * face < 30:
+            if near and near[2] == CRAWLER and 10 < near[0] * face < 34:
                 self.keys(cpc.KEY_RIGHT if face > 0 else cpc.KEY_LEFT, cpc.KEY_UP)
                 return
         elif mode in (MODE_FOOT, MODE_CHARGING):
@@ -160,7 +161,7 @@ class Bot:
             self.log.append((frame, self.target, charge[self.target] >> 8))
         mid = self.gen_mid[self.target]
         if mode == MODE_MOUNTED:
-            d = self.towards(mid - (px + 8))
+            d = self.towards(mid - (px + RUNNER_MID))
             speed = g.byte("PL_SPEED")
             if abs(d) > 40:
                 self.keys(cpc.KEY_RIGHT if d > 0 else cpc.KEY_LEFT, *self.fire)
@@ -182,7 +183,7 @@ class Bot:
                 return
             # charged: call the Runner and get on
             rn = g.byte("RN_STATE")
-            if rn == RUNNER_IDLE and abs(self.towards(self.word("RN_X") // 8 + 4 - px)) <= 6:
+            if rn == RUNNER_IDLE and abs(self.towards(self.word("RN_X") // 8 + SADDLE - px)) <= 6:
                 self.keys(cpc.KEY_DOWN, " ")
                 self.target = None
             elif rn != RUNNER_COMING and frame % 8 == 0:
@@ -225,7 +226,7 @@ def main(names, seed=None, planet=1):
         verdict = "ok" if must is None or over in must else "WRONG"
         failed |= verdict == "WRONG"
         print(f"{name:7} {END_NAMES[over]:12} after {played // 60}:{played % 60:02}, "
-              f"score {score * 10}, {verdict}")
+              f"score {score * 10}, {verdict}, {bot.g.word('LATE_FLIPS')} late flips")
         if name in ("keeper", "player", "skilled"):
             print(f"        recharges: {len(bot.log)}")
     if failed:

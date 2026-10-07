@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Generate the sprite sheet.
 
-The Runner (4 running frames and a standing one), its rider on foot
-(standing, 2 walking frames, aiming up), the two together while mounted (4
-frames: one sprite is cheaper than two), all facing right and mirrored to
-face left; the enemies (drifter, tracker, crawler, rock thrower, breach
+The Runner, 24x36, in two parts: its body (ridden, with the rider sitting
+on it, or not) and its legs (4 running poses and a standing one); the rider
+on foot (standing, 2 walking frames, aiming up); all facing right and
+mirrored to face left; the enemies (drifter, tracker, crawler, rock thrower, breach
 carrier, 2 frames each), their bombs and rocks, an explosion, an energy
 cell; and the rider's bolts (horizontal, vertical, diagonal both ways).
-
-The look is chunky and shaded, with black outlines: the Runner, its rider
-and the mounted frames are outlined all round (outline()), the enemies have
+The look is chunky and shaded, with black outlines: the Runner and the rider
+are outlined all round (outline()), the enemies have
 their black drawn in by hand.
 
 Sprites share the playfield palette and use only its fixed pens (tools/pens.py);
@@ -36,27 +35,33 @@ KEY = {".": 0, "K": OPAQUE_BLACK, "w": pens.WHITE, "Y": pens.YELLOW, "y": pens.O
        "g": pens.DGREEN, "m": pens.MAGENTA, "u": pens.MAGENTA, "p": pens.PBLUE,
        "s": pens.PBLUE, "c": pens.PBLUE}
 
-# The Runner: a big flightless running beast, crested, saddled, with a
-# plumed tail; its legs are drawn by runner().
+# The Runner: a big flightless running beast on long bird legs, crested
+# head held low and forward (below the rider's gun), saddled in the middle
+# so the rider sits RIDER_DX in whichever way it faces, plumed tail; its
+# legs are drawn by runner().
 RUNNER_BODY = [
-    "................",
-    "................",
-    "............rr..",
-    "............GGGG",
-    "...........gGwKG",
-    "...........gGGyy",
-    "............gGy.",
-    "...........gG...",
-    "g.........gGg...",
-    "Gg..yrrrrgGGg...",
-    ".GGgyyyyyGGGGg..",
-    "..gGGGGGGGGGGGg.",
-    "...ggGGGGGGGGgg.",
-    "....gggggggggg..",
+    "g.......................",
+    "Gg......................",
+    "gGg.....................",
+    ".gGg...............rr...",
+    "..GGg.............rGGGG.",
+    "...GGg...........rGGwKGG",
+    "...gGGgyrrrrrry..gGGGGyy",
+    "....gGGyyyyyyyyg.ggGGGy.",
+    "....gGGGGGGGGGGGgGGGg...",
+    "...gGGGGGGGGGGGGGGGg....",
+    "..gGGGGGGGGGGGGGGGGg....",
+    "..gGGGGGGGGGGGGGGGg.....",
+    "...ggGGGGGGGGGGGGgg.....",
+    "....ggggGGGGGGGgg.......",
+    ".....gggggggggg.........",
+    ".......gggggg...........",
 ]
-RUNNER_H = 24
-HIP_Y = 13
-RIDER_DX, RIDER_DY = 4, -2     # rider position on the Runner when mounted
+RUNNER_W, RUNNER_H = 24, 36
+HIP_Y = 14
+LEGS_Y = 14                 # the legs' frames start this far down (player.asm)
+RIDER_DX = 8                # rider's x on the Runner (player.asm RIDER_ON_RUNNER)
+RIDER_UP = 3                # rows of the rider above the Runner (player.asm)
 
 # The rider: helmet with a dark visor, suit, belt, boots, gun forward.
 RIDER_BODY = [
@@ -87,8 +92,7 @@ RIDER_LEGS = {
     "walk1": ["..pp....", "..pp....", "..eee..."],
     "sit": [".ppppp..", "....p...", "....ee.."],
 }
-# Mounted: sitting, the gun a little shorter to clear the Runner's head.
-RIDER = RIDER_BODY[:5] + [".ppKeew."] + RIDER_BODY[6:] + RIDER_LEGS["sit"]
+RIDER_SIT = RIDER_BODY + RIDER_LEGS["sit"]       # on the Runner
 
 TRACKER = [[
     "..KwwK..",
@@ -233,51 +237,70 @@ def line(g, x0, y0, x1, y1, pen, width=1):
         x = round(x0 + (x1 - x0) * i / n)
         y = round(y0 + (y1 - y0) * i / n)
         for dx in range(width):
-            if 0 <= x + dx < 16 and 0 <= y < RUNNER_H:
+            if 0 <= x + dx < RUNNER_W and 0 <= y < RUNNER_H:
                 g[y][x + dx] = pen
 
 
-def runner_raw(phase):
-    """Running frame 0-3, or phase None for standing; not outlined."""
-    g = grid(RUNNER_BODY) + [[0] * 16 for _ in range(RUNNER_H - len(RUNNER_BODY))]
-    # Two bird legs half a cycle apart: a thick thigh, the joint bending
-    # back, a thin shank down to a clawed foot. The far leg is darker and
-    # drawn first; the leg swinging forward is lifted.
-    stride = [3, 1, -1, -3]
-    for hip, offset, thigh, shank in ((6, 2, KEY["g"], KEY["g"]), (9, 0, KEY["G"], KEY["g"])):
+def runner(phase):
+    """The whole Runner, running frame 0-3 or phase None for standing,
+    rider_top rows above it with the rider sitting on it if rider; outlined."""
+    g = grid(RUNNER_BODY) + [[0] * RUNNER_W for _ in range(RUNNER_H - len(RUNNER_BODY))]
+    # Two bird legs half a cycle apart: a thick thigh forward to the knee,
+    # the shank back to the ankle joint, the long foot bone forward to a
+    # clawed foot. The far leg is darker and drawn first; the leg swinging
+    # forward is lifted.
+    stride = [5, 2, -2, -5]
+    for hip, offset, thigh, shank in ((9, 2, KEY["g"], KEY["g"]), (13, 0, KEY["G"], KEY["g"])):
         if phase is None:
             dx, lift = 0, 0
         else:
             p = (phase + offset) % 4
             dx = stride[p]
-            lift = 2 if p == 3 else 0
+            lift = 4 if p == 3 else 0
         foot = (hip + dx, RUNNER_H - 1 - lift)
-        knee = (hip + dx // 2 + 1, 16 - lift // 2)
-        joint = (hip + dx // 2 - 1, 20 - lift)
-        line(g, hip, HIP_Y, knee[0], knee[1], thigh, 2)
-        line(g, knee[0], knee[1], joint[0], joint[1], shank)
+        knee = (hip + dx // 2 + 2, 20 - lift // 2)
+        joint = (hip + dx // 2 - 2, 28 - lift)
+        line(g, hip, HIP_Y, knee[0], knee[1], thigh, 3)
+        line(g, knee[0], knee[1], joint[0], joint[1], shank, 2)
         line(g, joint[0], joint[1], foot[0], foot[1], shank)
-        for fx in (foot[0], foot[0] + 1):
-            if 0 <= fx < 16:
+        for fx in range(foot[0] - 1, foot[0] + 3):
+            if 0 <= fx < RUNNER_W:
                 g[foot[1]][fx] = KEY["y"]
     return g
 
 
-def runner(phase):
-    return outline(runner_raw(phase))
-
-
-def mounted(phase):
-    """The Runner with its rider sitting on it, rider top at RIDER_DY."""
-    top = -RIDER_DY
-    g = [[0] * 16 for _ in range(RUNNER_H + top)]
-    for y, row in enumerate(runner_raw(phase)):
-        g[y + top] = list(row)
-    for y, row in enumerate(grid(RIDER)):
+def ridden(phase):
+    """The Runner with the rider sitting on it, RIDER_UP rows above it."""
+    g = [[0] * RUNNER_W for _ in range(RIDER_UP)] + runner(phase)
+    for y, row in enumerate(grid(RIDER_SIT)):
         for x, pen in enumerate(row):
             if pen:
                 g[y][x + RIDER_DX] = pen
-    return outline(g)
+    return g
+
+
+def split_runner():
+    """The Runner in parts: only its legs move, so its body (the rows above
+    LEGS_Y, the same in every frame) is one frame, ridden or not, and each
+    pose of the legs another, cropped to them: (name, grid, x offset)."""
+    poses = [(f"legs{i}", i) for i in range(4)] + [("legs_stand", None)]
+    whole = [outline(runner(p)) for _, p in poses]
+    with_rider = [outline(ridden(p)) for _, p in poses]
+    assert all(g[:LEGS_Y] == whole[0][:LEGS_Y] for g in whole), "the body moves"
+    top = LEGS_Y + RIDER_UP
+    assert all(g[:top] == with_rider[0][:top] for g in with_rider), "the body moves"
+    parts = [("body", whole[0][:LEGS_Y], 0), ("mounted", with_rider[0][:top], 0)]
+    for (name, _), g in zip(poses, whole):
+        legs = g[LEGS_Y:]
+        xs = [x for row in legs for x, pen in enumerate(row) if pen]
+        x0, x1 = min(xs), max(xs) + 1
+        if (x1 - x0) % 2:               # whole bytes
+            if x1 < RUNNER_W:
+                x1 += 1
+            else:
+                x0 -= 1
+        parts.append((name, [row[x0:x1] for row in legs], x0))
+    return parts
 
 
 def mirror(g):
@@ -285,14 +308,16 @@ def mirror(g):
 
 
 def main(sheet_path, json_path):
-    right = [(f"mounted{i}", mounted(i)) for i in range(4)]
-    right += [(f"runner{i}", runner(i)) for i in range(4)]
-    right.append(("runner_stand", runner(None)))
-    right += [(f"rider_{k}", outline(grid(RIDER_BODY + RIDER_LEGS[k])))
+    right = split_runner()
+    right += [(f"rider_{k}", outline(grid(RIDER_BODY + RIDER_LEGS[k])), None)
               for k in ("stand", "walk0", "walk1")]
-    right.append(("rider_up", outline(grid(RIDER_UP_BODY + RIDER_LEGS["stand"]))))
+    right.append(("rider_up", outline(grid(RIDER_UP_BODY + RIDER_LEGS["stand"])), None))
     # Facing right, then the same frames facing left: frame + FACING_LEFT.
-    frames = [(name + "_r", g) for name, g in right] + [(name + "_l", mirror(g)) for name, g in right]
+    # Legs carry their x offset from the Runner's left edge.
+    frames = [(name + "_r", g, dx) for name, g, dx in right]
+    frames += [(name + "_l", mirror(g), None if dx is None else RUNNER_W - dx - len(g[0]))
+               for name, g, dx in right]
+    frames = [(name, g) if dx is None else (name, g, dx) for name, g, dx in frames]
     frames += [(f"drifter{i}", grid(d)) for i, d in enumerate(DRIFTER)]
     for name, art in (("tracker", TRACKER), ("crawler", CRAWLER), ("thrower", THROWER),
                       ("carrier", CARRIER)):
@@ -301,8 +326,8 @@ def main(sheet_path, json_path):
     frames += [(name, grid(g)) for name, g in SHOTS.items()]
     frames.append(("shot_dl", mirror(grid(SHOTS["shot_d"]))))
 
-    width = sum(len(f[0]) for _, f in frames)
-    height = max(len(f) for _, f in frames)
+    width = sum(len(f[1][0]) for f in frames)
+    height = max(len(f[1]) for f in frames)
     img = Image.new("P", (width, height), 0)
     pal = []
     for name in pens.palette(["black"] * 4) + ["black"]:     # + OPAQUE_BLACK
@@ -310,7 +335,7 @@ def main(sheet_path, json_path):
     img.putpalette(pal + [0] * (768 - len(pal)))
     px = img.load()
     meta, x0 = [], 0
-    for name, g in frames:
+    for name, g, *dx in frames:
         w, h = len(g[0]), len(g)
         assert w % 2 == 0, name
         for y, row in enumerate(g):
@@ -318,6 +343,8 @@ def main(sheet_path, json_path):
             for x, pen in enumerate(row):
                 px[x0 + x, y] = pen
         meta.append({"name": name, "x": x0, "y": 0, "w": w, "h": h})
+        if dx:
+            meta[-1]["dx"] = dx[0]
         x0 += w
     img.save(sheet_path)
     with open(json_path, "w") as f:

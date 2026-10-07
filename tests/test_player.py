@@ -21,8 +21,10 @@ for line in open(os.path.join(ROOT, "build", "sprites.inc")):
 
 MODE_MOUNTED, MODE_FOOT, MODE_MOUNTING = 0, 1, 2
 RIDDEN, IDLE, COMING, ABSENT = 0, 1, 2, 3
-MOUNTED_Y, JUMP_PEAK = 73, 24
-VIEW_CX = 72
+RUNNER_Y, MOUNTED_Y, JUMP_PEAK = 63, 60, 24   # MOUNTED_Y: the rider sitting on it
+LEGS_Y = 14                 # the Runner's legs, below its body
+SADDLE = 8                  # the rider's x on the Runner
+VIEW_CX = 68
 SHOT_SIZE, MAX_SHOTS = 6, 4
 
 
@@ -78,7 +80,7 @@ class Player:
 def test():
     p = Player()
     c = p.g.c
-    mounted = [f"mounted{i}_{d}" for i in range(4) for d in "rl"]
+    legs = [f"legs{i}_{d}" for i in range(4) for d in "rl"]
 
     # Riding right: speeds up to 4 pixels a frame, the camera keeps up.
     x0 = p.x("PL_X")
@@ -94,17 +96,20 @@ def test():
     assert p.b("PL_SPEED") == 0, "did not coast to a stop"
     print(f"ride: ok ({x0:.0f} -> {p.x('PL_X'):.0f})")
 
-    # Jump: up and back down, highest JUMP_PEAK pixels up.
+    # Jump: up and back down, highest JUMP_PEAK pixels up; the Runner's body
+    # with the rider on it, its legs below.
     ys = []
     c.key_down(cpc.KEY_UP)
     for i in range(40):
         p.frames(1)
-        r = p.shown_frames(*mounted)
-        assert len(r) == 1
-        ys.append(r[0][2])
+        body = p.shown_frames("mounted_r", "mounted_l")
+        r = p.shown_frames(*legs)
+        assert len(body) == 1 and len(r) == 1
+        assert r[0][2] == body[0][2] + (RUNNER_Y - MOUNTED_Y) + LEGS_Y
+        ys.append(body[0][2] + RUNNER_Y - MOUNTED_Y)
         if i == 4:              # the game reads the keys once a game frame
             c.key_up(cpc.KEY_UP)
-    assert min(ys) == MOUNTED_Y - JUMP_PEAK and ys[-1] == MOUNTED_Y, f"jump: {ys}"
+    assert min(ys) == RUNNER_Y - JUMP_PEAK and ys[-1] == RUNNER_Y, f"jump: {ys}"
     assert p.b("PL_JUMP") == 0
     print(f"jump: ok (top {min(ys)})")
 
@@ -140,12 +145,13 @@ def test():
     p.frames(4)
     assert p.b("PL_MODE") == MODE_FOOT and p.b("RN_STATE") == IDLE
     assert p.x("RN_X") == rx
-    assert p.shown_frames("runner_stand_r") and p.shown_frames("rider_stand_r")
+    assert p.shown_frames("legs_stand_r") and p.shown_frames("body_r")
+    assert p.shown_frames("rider_stand_r")
     assert p.shots() == [], "dismounting must not fire"
     # walk right: slowly, no scrolling, stopping at the edge of the view
     c.key_down(cpc.KEY_RIGHT)
     p.frames(20)
-    assert abs(p.x("PL_X") - (rx + 4) - 10) <= 1, "not walking at 1 pixel a frame"
+    assert abs(p.x("PL_X") - (rx + SADDLE) - 10) <= 1, "not walking at 1 pixel a frame"
     p.frames(200)
     c.key_up(cpc.KEY_RIGHT)
     assert p.g.word("SCROLL_POS") == scroll, "the screen scrolled on foot"
@@ -171,8 +177,8 @@ def test():
     assert p.b("RN_STATE") == COMING
     p.frames(80)
     assert p.b("RN_STATE") == IDLE
-    assert abs(p.x("RN_X") + 4 - p.x("PL_X")) <= 3
-    assert p.shown_frames("runner_stand_l", "runner_stand_r")
+    assert abs(p.x("RN_X") + SADDLE - p.x("PL_X")) <= 3
+    assert p.shown_frames("legs_stand_l", "legs_stand_r")
     # mount: the camera pans back to the Runner, then the controls return
     p.press([cpc.KEY_DOWN, " "], 4)
     assert p.b("PL_MODE") in (MODE_MOUNTING, MODE_MOUNTED) and p.b("RN_STATE") == RIDDEN
@@ -186,7 +192,7 @@ def test():
     p.frames(10)
     rider = p.g.word("PL_X")
     for offset in range(-30, 31):          # every position: it moves 3 pixels a step
-        rn = (rider - 32 + offset * 8) & 0x1FFF        # saddle offset from the rider
+        rn = (rider - SADDLE * 8 + offset * 8) & 0x1FFF        # saddle offset from the rider
         p.g.c.write_ram(p.g.sym["RN_X"], bytes([rn & 255, rn >> 8]))
         p.g.c.write_ram(p.g.sym["RN_STATE"], bytes([IDLE]))
         p.frames(4)                         # W let go since the last try
@@ -196,7 +202,7 @@ def test():
             if p.b("RN_STATE") == IDLE:
                 break
         assert p.b("RN_STATE") == IDLE, f"the Runner never stopped (offset {offset})"
-        assert abs(p.x("RN_X") + 4 - p.x("PL_X")) <= 3, offset
+        assert abs(p.x("RN_X") + SADDLE - p.x("PL_X")) <= 3, offset
     p.screen = Screen(p.g)
     p.pos = p.screen.check(p.g.word("SCROLL_POS"))
     p.press([cpc.KEY_DOWN, " "], 4)
@@ -209,7 +215,7 @@ def test():
     p.frames(4)
     c.write_ram(p.g.sym["RN_STATE"], bytes([ABSENT]))
     p.frames(4)
-    assert not p.shown_frames("runner_stand_r", "runner_stand_l")
+    assert not p.shown_frames("legs_stand_r", "legs_stand_l", "body_r", "body_l")
     spares = p.b("PL_SPARES")
     p.press(["w"], 4)
     assert p.b("PL_SPARES") == spares - 1 and p.b("RN_STATE") == COMING

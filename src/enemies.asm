@@ -39,6 +39,9 @@ M_BOMB        equ 1
 M_ROCK        equ 2
 
 GROUND_LINE   equ 98        ; the crust
+MOUNTED_BOX_X equ 5         ; mounted hit box: rider and Runner, down to
+MOUNTED_BOX_W equ 14        ; two lines above the ground (jump crawlers)
+MOUNTED_BOX_H equ GROUND_LINE-2-(MOUNTED_Y+2)+1
 CRAWLER_Y     equ GROUND_LINE-8
 THROWER_Y     equ GROUND_LINE-12
 CELL_Y        equ GROUND_LINE-6
@@ -151,19 +154,19 @@ player_box:
     jr z,.foot
     cp MODE_CHARGING
     jr z,.foot
-    inc hl
-    inc hl
+    ld de,MOUNTED_BOX_X
+    add hl,de
     ld (pb_x),hl
-    ld de,6
+    ld de,MOUNTED_BOX_W/2
     add hl,de
     ld (pl_mid_x),hl
     call jump_offset
     neg
     add a,MOUNTED_Y+2
     ld (pb_y),a
-    add a,11
+    add a,MOUNTED_BOX_H/2
     ld (pl_mid_y),a
-    ld hl,12+22*256
+    ld hl,MOUNTED_BOX_W+MOUNTED_BOX_H*256
     ld (pb_w),hl
     ret
 .foot:

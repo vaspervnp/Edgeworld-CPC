@@ -21,12 +21,17 @@
 ; so speeds can be fractional. Frames facing left are the right-facing frame
 ; number + FACE_LEFT.
 
-FACE_LEFT     equ SPR_MOUNTED0_L-SPR_MOUNTED0_R
-VIEW_CX       equ 72        ; mounted sprite's screen x when centred
-MOUNTED_Y     equ 73        ; tops of the sprites standing on the crust
-RUNNER_Y      equ 75
+FACE_LEFT     equ SPR_BODY_L-SPR_BODY_R
+VIEW_CX       equ 68        ; the ridden Runner's screen x when centred
+RUNNER_Y      equ 63        ; tops of the sprites standing on the crust
 RIDER_Y       equ 87
-RIDER_ON_RUNNER equ 4*8     ; rider's x on the Runner (eighths)
+RIDER_UP      equ 3         ; the rider sitting on the Runner shows this far above it
+MOUNTED_Y     equ RUNNER_Y-RIDER_UP ; top of the rider sitting on the Runner
+LEGS_Y        equ 14        ; the Runner's legs start this far below its top
+POSES         equ 5         ; poses of its legs: running 0-3 and...
+POSE_STAND    equ 4         ; ...standing
+RIDER_ON_RUNNER equ 8*8     ; rider's x on the Runner (eighths), facing either way
+RUNNER_W      equ 24
 
 ACCEL         equ 3         ; eighths of a pixel per frame, per frame
 DECEL         equ 2
@@ -216,26 +221,26 @@ update_mounted:
 .shoot:
     call can_fire
     jr nz,.camera
-    ; bolt from the lance: forward, or diagonally up with up held
+    ; bolt from the rider's gun: forward, or diagonally up with up held
     ld hl,(pl_x)
     TO_PIXELS
     call jump_offset
     neg
-    add a,MOUNTED_Y+7
+    add a,MOUNTED_Y+5
     ld c,a
     ld a,(joy_state)
     bit IN_UP,a
     jr nz,.diagonal
-    ld de,16
-    ld b,-4
+    ld de,RIDER_ON_RUNNER/8+8
+    ld b,RIDER_ON_RUNNER/8-4
     call fire_forward
     jr .camera
 .diagonal:
     ld a,c
     sub 6
     ld c,a
-    ld de,14
-    ld b,-2
+    ld de,RIDER_ON_RUNNER/8+10
+    ld b,RIDER_ON_RUNNER/8-6
     call fire_diagonal
 .camera:
     call camera_follow
@@ -501,7 +506,7 @@ whistle:
     ld a,(pl_face)
     or a
     jr nz,.from_right
-    ld de,-16
+    ld de,-RUNNER_W
     jr .enter
 .from_right:
     ld de,160
@@ -676,14 +681,22 @@ jump_offset:
     pop hl
     ret
 
-; Fire a bolt forward from pixel x HL: DE pixels ahead when facing right,
-; B (negative) when facing left; C = y.
+; DE = B, sign-extended.
+b_to_de:
+    ld e,b
+    ld a,b
+    rla
+    sbc a,a
+    ld d,a
+    ret
+
+; Fire a bolt forward from pixel x HL: DE pixels on when facing right,
+; B (signed) when facing left; C = y.
 fire_forward:
     ld a,(pl_face)
     or a
     jr z,.right
-    ld e,b
-    ld d,#FF
+    call b_to_de
     add hl,de
     ld a,SPR_SHOT_H
     ld de,SHOT_MOVE_L
@@ -706,8 +719,7 @@ fire_diagonal:
 .facing:
     or a
     jr z,.right
-    ld e,b
-    ld d,#FF
+    call b_to_de
     add hl,de
     ld a,SPR_SHOT_DL
     ld de,SHOT_MOVE_UL
@@ -852,8 +864,8 @@ list_end:
     ld (hl),a
     ret
 
-; Add the Runner, the rider (or both, mounted) and the bolts to the list.
-; After a hit the rider (or the mounted pair) flickers.
+; Add the Runner, the rider (sitting on it when mounted) and the bolts to
+; the list. After a hit the rider (with the Runner, mounted) flickers.
 player_sprites:
     ; the Runner on its own
     ld a,(rn_state)
@@ -861,24 +873,23 @@ player_sprites:
     jr c,.rider
     cp RUNNER_ABSENT
     jr z,.rider
-    ld b,SPR_RUNNER_STAND_R
+    ld d,POSE_STAND
     cp RUNNER_COMING
-    jr nz,.runner_frame
+    jr nz,.runner_pose
     ld a,(rn_legs)
     rlca
     rlca
     rlca
     and 3                   ; a step per 4 pixels
-    add a,SPR_RUNNER0_R
-    ld b,a
-.runner_frame:
+    ld d,a
+.runner_pose:
     ld a,(rn_face)
-    call facing
+    ld e,a
     ld hl,(rn_x)
     TO_PIXELS
     ld c,RUNNER_Y
-    ld a,b
-    call list_add
+    ld b,SPR_BODY_R
+    call runner_parts
 .rider:
     ld a,(pl_invuln)
     and 2
@@ -888,31 +899,29 @@ player_sprites:
     jr z,.on_foot
     cp MODE_CHARGING
     jr z,.on_foot
-    ; mounted: legs move with the ride, tucked in a jump
+    ; mounted: the Runner's legs move with the ride, tucked in a jump;
+    ; the rider sits on its body
     ld a,(pl_jump)
     or a
-    ld b,SPR_MOUNTED1_R
-    jr nz,.mounted_frame
+    ld d,1
+    jr nz,.mounted_pose
     ld a,(pl_legs)
     rlca
     rlca
     rlca
     and 3
-    add a,SPR_MOUNTED0_R
-    ld b,a
-.mounted_frame:
-    ld a,(pl_face)
-    call facing
-    push bc
+    ld d,a
+.mounted_pose:
     call jump_offset
-    pop bc
     neg
-    add a,MOUNTED_Y
+    add a,RUNNER_Y
     ld c,a
+    ld a,(pl_face)
+    ld e,a
     ld hl,(pl_x)
     TO_PIXELS
-    ld a,b
-    call list_add
+    ld b,SPR_MOUNTED_R
+    call runner_parts
     jr .shots
 .on_foot:
     ld b,SPR_RIDER_UP_R     ; aiming up, or plugged in
@@ -960,6 +969,67 @@ player_sprites:
     add iy,de
     djnz .shot
     ret
+
+; Add the Runner at pixel x HL with its top on line C, facing E: body frame
+; B (SPR_BODY_R, or SPR_MOUNTED_R with the rider on it, RIDER_UP lines
+; higher), and its legs in pose D (0-3 running, POSE_STAND), offset as
+; drawn (legs_dx).
+runner_parts:
+    ld a,d
+    ld (rp_pose),a
+    ld a,e
+    ld (rp_face),a
+    push hl
+    push bc
+    ld a,b
+    cp SPR_MOUNTED_R
+    jr nz,.body
+    ld a,c
+    sub RIDER_UP
+    ld c,a
+.body:
+    ld a,(rp_face)
+    call facing
+    ld a,b
+    call list_add
+    pop bc
+    pop hl
+    ; the legs
+    ld a,(rp_face)
+    or a
+    ld a,(rp_pose)
+    jr z,.right
+    add a,POSES
+.right:
+    ex de,hl
+    ld hl,legs_dx
+    add a,l
+    ld l,a
+    adc a,h
+    sub l
+    ld h,a
+    ld a,(hl)
+    ex de,hl
+    ld e,a
+    ld d,0
+    add hl,de
+    ld a,c
+    add a,LEGS_Y
+    ld c,a
+    ld a,(rp_pose)
+    add a,SPR_LEGS0_R
+    ld b,a
+    ld a,(rp_face)
+    call facing
+    ld a,b
+    jp list_add
+
+; The legs' x offsets from the Runner's left edge, per pose, facing right
+; then left (tools/gen_sprites.py).
+legs_dx:
+    db SPR_LEGS0_R_DX,SPR_LEGS1_R_DX,SPR_LEGS2_R_DX,SPR_LEGS3_R_DX,SPR_LEGS_STAND_R_DX
+    db SPR_LEGS0_L_DX,SPR_LEGS1_L_DX,SPR_LEGS2_L_DX,SPR_LEGS3_L_DX,SPR_LEGS_STAND_L_DX
+    assert SPR_LEGS_STAND_R == SPR_LEGS0_R+POSE_STAND
 
 ; B = frame B turned to face A (0 right, else left).
 facing:
@@ -1039,7 +1109,7 @@ JUMP_FRAMES equ 16
 jump_table:                 ; pixels above the ground, frame by frame
     db 5,10,14,17,20,22,23,24,24,23,22,20,17,14,10,5
 
-pl_x:       dw 0            ; mounted sprite / rider on foot, eighths
+pl_x:       dw 0            ; the ridden Runner / the rider on foot, eighths
 pl_mode:    db 0
 pl_face:    db 0            ; 0 right, 1 left
 pl_speed:   db 0            ; eighths of a pixel per frame
@@ -1056,6 +1126,8 @@ rn_state:   db 0
 rn_face:    db 0
 rn_speed:   db 0
 rn_legs:    db 0
+rp_pose:    db 0
+rp_face:    db 0
 joy_prev:   db 0
 joy_new:    db 0
 list_count: db 0

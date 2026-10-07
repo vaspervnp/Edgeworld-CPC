@@ -169,10 +169,12 @@ class Screen:
         self.top = self.find_top()
 
     def find_top(self):
-        lines = self.game.frame_lines()
-        for y in range(10, 80):
-            if Game.pixels(lines[y + PLAY_H + 8]) == self.exp.hud[8]:
-                return y
+        for _ in range(10):         # the picture may come on a frame or two late
+            lines = self.game.frame_lines()
+            for y in range(10, 80):
+                if Game.pixels(lines[y + PLAY_H + 8]) == self.exp.hud[8]:
+                    return y
+            self.game.next_frame()
         raise AssertionError("cannot find the HUD in the framebuffer")
 
     def buffers(self):

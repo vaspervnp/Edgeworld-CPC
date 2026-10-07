@@ -16,7 +16,7 @@ Palace is reused.
 
 ![The four planets](docs/planets.png)
 
-**Version 1.1.** Disc image: [`release/shieldrunner-1.1.dsk`](release/shieldrunner-1.1.dsk). Version 1.1 redraws the sprites in a chunkier, shaded, black-outlined style; [1.0](release/shieldrunner-1.0.dsk) is kept.
+**Version 1.2.** Disc image: [`release/shieldrunner-1.2.dsk`](release/shieldrunner-1.2.dsk). Version 1.1 redrew the sprites in a chunkier, shaded, black-outlined style; 1.2 makes the Runner half as big again (24x36 pixels). Earlier discs are kept: [1.1](release/shieldrunner-1.1.dsk), [1.0](release/shieldrunner-1.0.dsk).
 Controls card to print: [`docs/controls-card.html`](docs/controls-card.html)
 (A4 landscape, fold in half).
 
@@ -271,7 +271,7 @@ the playfield palette back.
 shifted one pixel right, so any x is drawn with whole bytes, pen 0
 transparent. The sheet has a seventeenth pen, black drawn opaque, for the
 outlines and dark shading that give the sprites their chunky, 8-bit
-arcade look (the Runner, the rider and the mounted frames are outlined all
+arcade look (the Runner and the rider are outlined all
 round by `tools/gen_sprites.py`; the enemies have their black drawn in).
 `tools/spritec.py` compiles every frame into straight-line Z80:
 `LD (HL),n` for solid bytes, `AND`/`OR` with immediates for bytes with
@@ -281,9 +281,9 @@ with a single test for the character row. The code and the raw pixels live
 in the 6128's extra RAM banks, paged in at `&4000` while sprites are drawn
 (the CRTC keeps showing the HUD from base RAM there). A sprite clipped at the
 edge of the view, or one with a line running off the end of the 2K screen
-ring (rare), is drawn by a generic masked loop from the raw pixels instead,
-with the masks and pixels from two 256-byte tables (opaque black is stored
-there as pen 1, the sky, which sprites never use, and drawn as pen 0). Sprites live in world coordinates.
+ring, is drawn by a generic masked loop from the raw data instead, stored
+as (mask, pixels) byte pairs so opaque black needs nothing special. Sprites
+live in world coordinates.
 
 Each screen buffer keeps the sprites it shows and their cell layout (which
 map columns and character rows they cover). Before the buffer is drawn
@@ -291,8 +291,16 @@ again, the cells under its old sprites are restored from the map, only on
 the lines the sprite covered; there is no saved background. Then the new
 sprites are drawn, and the foreground tiles under them are drawn again
 through their masks, so sprites pass behind them, as in Pete Green's 1988
-routine. While mounted, the Runner and rider are one combined sprite;
-frames facing left are mirrored copies.
+routine. Frames facing left are mirrored copies.
+
+The Runner is the biggest sprite, 24x36 pixels, drawn as two: its body
+(the top 14 lines, the same in every frame) and its legs (one frame per
+pose, cropped to the legs, with an x offset the game adds). The body has a
+ridden version with the rider sitting on it, 8 pixels in from its left
+edge, which is the saddle whichever way it faces. Only the legs animate, so
+the Runner takes 10 small leg frames and 4 body frames rather than 18 whole
+ones (whole frames would not fit the extra RAM at this size), and the
+restore covers the legs' own width instead of the Runner's.
 
 **Generators.** Generators are 64 columns apart and the view is 40, so only
 one is ever on screen: its core is drawn in pen 2, which nothing else uses,
@@ -382,20 +390,21 @@ effect takes channel C over while it lasts, by priority. The game asks for
 music and effects by writing one byte that the next tick picks up, so the
 interrupt never sees a half-written request; the registers are written
 every tick except while the main code reads the keyboard, which goes
-through the same PSG port. It costs about 1.7K NOPs a game frame.
+through the same PSG port; only registers that changed since the last
+write are sent. It costs about 1.3K NOPs a game frame.
 
-**Frame budget** (riding at full speed and firing, NOPs of 39,936): restore
-about 10K, two new scroll columns about 5K, sprite drawing about 4K
-(compiled; more when sprites are clipped), interrupts about 2.5K,
-foreground up to 3.5K when sprites pass behind it, game logic about 3K,
-sound about 1.7K. Measured end to end with `tests/profile.py --work` (flip
-to next buffer queued, interrupts included): median 21.8K, worst 26.5K of
-39.9K us; the screen test's busiest frame, with the most enemies on
-screen, still leaves 11K us spare. The heaviest case is a late planet
-with breaches: a breach wave and the carrier on top of the ambient enemies
-(6 enemies, missiles, bolts); stress runs on planet 4 left 1.9K to 6.7K
-NOPs spare at the worst, with no frame late. The restore stays the main
-optimisation target.
+**Frame budget** (riding at full speed and firing, NOPs of 39,936): about
+27K busy (`tests/profile.py`): restore about 6.5K (the 24x36 Runner is most
+of it), two new scroll columns about 5K, sprite drawing about 4K (compiled;
+more when sprites are clipped or cross the end of the screen ring), sprite
+bookkeeping about 3K, interrupts about 2.5K, foreground up to 3.5K when
+sprites pass behind it, game logic about 3K, sound about 1.3K. The heaviest
+case is a late planet with breaches: a breach wave and the carrier on top
+of the ambient enemies (6 enemies, missiles, bolts), with the waiting
+Runner beside a generator. There a frame can now run late: in bot playtests
+on planets 2-4 most runs have none, a few have 4 to 19 over a planet (each
+one frame shown for 3 VSYNCs instead of 2). Before the Runner grew (1.1)
+there were none. The restore stays the main optimisation target.
 
 **Tiles.** A tile is one CRTC character: 4 Mode 0 pixels by 8 lines, 16 bytes.
 The map is stored column-major, one byte per cell, with a table of column
@@ -436,7 +445,7 @@ palette, plus the foreground overlays from a second mask image;
 | `tools/pack_bank.py` | Packs files into an extra RAM bank image (the last sprites, in bank 6) |
 | `tools/mkplanet.py` | Packs a planet (art and description) into a bank image |
 | `assets/planets/` | The planets' descriptions |
-| `tools/gen_tables.py` | Sprite mask and pixel tables |
+| `tools/gen_tables.py` | Mask table (the title logo) |
 | `tools/spritec.py` | Sprite compiler: code and data for the extra RAM banks |
 | `tools/mkdisc.py` | Builds the disc: BASIC loader, extra RAM banks, game, planets |
 | `tools/png2tiles.py` | PNG to Mode 0 tiles, map, palette and foreground overlays |
@@ -467,7 +476,7 @@ palette, plus the foreground overlays from a second mask image;
 | `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block). The rest of the blocks holds code and data that never page a bank and that the interrupt does not use: block 0 the packed HUD and the text code, block 1 game.asm, block 2 title.asm; blocks 3-7 are free |
 | `&8000-&BFFF` | Playfield buffer 2 (and, with buffer 1, where a planet file is read before it goes into bank 7) |
 | `&C000-&FFFF` | Playfield buffer 1 |
-| Extra RAM 4-6 | Sprites: compiled routines and raw pixels (45K, 45 frames) |
+| Extra RAM 4-6 | Sprites: compiled routines and raw (mask, pixels) data (43K, 41 frames) |
 | Extra RAM 7 | The current planet, loaded from disc: map, header, tiles, foreground (9.7K to 11K) |
 
 The CRTC always reads base RAM, so the HUD stays on screen when one of the

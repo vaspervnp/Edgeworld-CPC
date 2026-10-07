@@ -49,6 +49,13 @@ sound_init:
     djnz .clear
     ld a,MIXER_TONES
     ld (psg_shadow+7),a
+    ld hl,psg_last          ; none written yet: all differ (none is #FF now)
+    ld b,11
+    ld a,#FF
+.unknown:
+    ld (hl),a
+    inc hl
+    djnz .unknown
     jp psg_write
 
 ; Ask for song A (SONG_*, or MUSIC_STOP) at the next tick. Trashes A.
@@ -321,6 +328,12 @@ psg_write:
     ld hl,psg_shadow
     ld d,0
 .reg:
+    ld a,(hl)               ; only the registers that changed
+    set 4,l
+    cp (hl)
+    ld (hl),a               ; psg_last
+    res 4,l
+    jr z,.same
     ld b,PPI_A
     out (c),d               ; register number
     ld bc,PPI_C*256+#C0     ; latch address
@@ -334,6 +347,7 @@ psg_write:
     out (c),c
     ld c,0
     out (c),c
+.same:
     inc hl
     inc d
     ld a,d
@@ -345,7 +359,11 @@ psg_write:
 chan_a:     ds CH_SIZE
 chan_b:     ds CH_SIZE
 chan_c:     ds CH_SIZE
-psg_shadow: ds 11
+    align 32
+psg_shadow: ds 11           ; the registers to write...
+    ds 5
+psg_last:   ds 11           ; ...and as last written (psg_shadow + 16)
+    assert psg_last == psg_shadow+16
 music_req:  db 0
 sfx_req:    db 0
 sfx_ptr:    dw 0
