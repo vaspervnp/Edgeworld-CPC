@@ -12,11 +12,13 @@ different world and enemy mix on each planet. It is an original game: the
 name, characters, art and music are new, and nothing from Rimrunner or
 Palace is reused.
 
+![The loading screen](docs/loading.png)
+
 ![The title screen](docs/title.png)
 
 ![The four planets](docs/planets.png)
 
-**Version 1.3.** Disc image: [`release/shieldrunner-1.3.dsk`](release/shieldrunner-1.3.dsk). Version 1.1 redrew the sprites in a chunkier, shaded, black-outlined style; 1.2 made the Runner half as big again (24x36 pixels); 1.3 wins back the frame time that cost (faster drawing, at most 5 enemies at once instead of 6) and fixes a rare hang at the end of a planet load. Earlier discs are kept: [1.2](release/shieldrunner-1.2.dsk), [1.1](release/shieldrunner-1.1.dsk), [1.0](release/shieldrunner-1.0.dsk).
+**Version 1.4.** Disc image: [`release/shieldrunner-1.4.dsk`](release/shieldrunner-1.4.dsk). Version 1.4 adds a loading screen; 1.1 redrew the sprites in a chunkier, shaded, black-outlined style; 1.2 made the Runner half as big again (24x36 pixels); 1.3 won back the frame time that cost (faster drawing, at most 5 enemies at once instead of 6) and fixed a rare hang at the end of a planet load. Earlier discs are kept: [1.3](release/shieldrunner-1.3.dsk), [1.2](release/shieldrunner-1.2.dsk), [1.1](release/shieldrunner-1.1.dsk), [1.0](release/shieldrunner-1.0.dsk).
 Controls card to print: [`docs/controls-card.html`](docs/controls-card.html)
 (A4 landscape, fold in half).
 
@@ -118,13 +120,42 @@ make
 ```
 
 This draws the planets, sprites, HUD and logo, writes the music, converts
-them, compiles the sprites, packs the planets, assembles the game and
-writes `build/shield.dsk`. `make release` copies it to
+them and the loading screen, compiles the sprites, packs the planets,
+assembles the game and writes `build/shield.dsk`. `make release` copies it to
 `release/shieldrunner-$(VERSION).dsk`.
 
-The disc holds `SHIELD.BAS` (the loader: it checks for the extra 64K, loads
-the sprites and the logo into it and runs `GAME.BIN`), `BANK4-6.BIN`,
-`GAME.BIN` and `PLANET1-4.BIN`, which the game loads itself.
+The disc holds `SHIELD.BAS` (the loader: it checks for the extra 64K, shows
+the loading screen `SCREEN.BIN`, loads the sprites into the extra 64K and
+runs `GAME.BIN`), `BANK4-6.BIN`, `GAME.BIN` and `PLANET1-4.BIN`, which the
+game loads itself.
+
+### The loading screen
+
+It was made in three steps:
+
+1. **A 3D scene in Blender:** `assets/loading_scene.blend`, built through
+   Blender's Python API. The Runner and its rider are skin-modifier
+   skeletons, posed mid-gallop on a rust plain, with a shield generator, a
+   tracker saucer, mauve mountains and a ringed planet under a dusk sky.
+2. **A render in Cycles:** physically based materials (subsurface-scattered
+   scaly skin, fabric, coated helmet, worn metal), soft shadows, glow and
+   depth of field, at 1280x800 (the proportions of the CPC's screen):
+   `assets/loading_render.png`.
+3. **The CPC picture:** `tools/mkloading.py` turns the render into a Mode 0
+   screen, 160x200 in 16 of the CPC's 27 colours. It squeezes the render to
+   160x200, then pushes saturation and contrast towards the CPC's strong
+   colours. It keeps black and the title logo's colours as inks and picks
+   the other nine for the picture (in CIE Lab, greedily, then swapping
+   while that helps). It dithers with a 4x4 Bayer matrix between each
+   pixel's two nearest inks, then puts the title logo, outlined in black,
+   over the top.
+
+![The 3D scene](docs/loading-3d.png)
+![The render](docs/loading-render.png)
+
+The loader sets the 16 inks in Mode 0 first and then loads the 16K
+straight into screen memory, so the picture comes in as it loads. No
+version is shown on screen.
 
 ## Testing
 
@@ -462,6 +493,8 @@ palette, plus the foreground overlays from a second mask image;
 | `tools/gen_sprites.py` | Generates the sprite sheet |
 | `tools/gen_hud.py` | Generates the HUD image |
 | `tools/gen_logo.py` | Generates the title logo |
+| `tools/mkloading.py` | Converts the loading screen render into a Mode 0 screen and its inks |
+| `assets/loading_scene.blend`, `assets/loading_render.png` | The loading screen's Blender scene and its Cycles render |
 | `tools/gen_music.py` | The music and sound effects, as data for `src/sound.asm` |
 | `tools/font.py` | The 3x5 font, for the HUD art, the game and the tests |
 | `tools/pack_bank.py` | Packs files into an extra RAM bank image (the last sprites, in bank 6) |

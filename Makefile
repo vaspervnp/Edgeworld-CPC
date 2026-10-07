@@ -1,5 +1,5 @@
 PYTHON ?= python3
-VERSION := 1.3
+VERSION := 1.4
 export VERSION
 RASM   ?= rasm
 IDSK   ?= iDSK
@@ -66,8 +66,13 @@ $(BUILD)/shield.bin: $(SRC) $(BUILD)/hud.rle $(BUILD)/sprites.inc $(BUILD)/table
 
 # The disc: a BASIC loader (SHIELD.BAS) that loads the sprite banks into
 # extra RAM, then runs the game (GAME.BIN).
-$(DSK): $(BUILD)/shield.bin $(BUILD)/sprites.inc $(BUILD)/bank6.bin $(PLANETS:%=$(BUILD)/planet%.bin) tools/mkdisc.py
-	$(PYTHON) tools/mkdisc.py $@ $(BUILD)/shield.bin BANK4=$(BUILD)/sprites.bank4.bin \
+# The loading screen: from the render of assets/loading_scene.blend (Blender,
+# Cycles) and the title logo, as a 16-ink Mode 0 picture.
+$(BUILD)/loading.bin $(BUILD)/loading.inks &: assets/loading_render.png assets/logo.png tools/mkloading.py tools/cpcpal.py tools/pens.py | $(BUILD)
+	$(PYTHON) tools/mkloading.py assets/loading_render.png assets/logo.png $(BUILD)/loading.bin $(BUILD)/loading.inks $(BUILD)/loading.png
+
+$(DSK): $(BUILD)/shield.bin $(BUILD)/sprites.inc $(BUILD)/bank6.bin $(PLANETS:%=$(BUILD)/planet%.bin) $(BUILD)/loading.bin tools/mkdisc.py
+	$(PYTHON) tools/mkdisc.py $@ $(BUILD)/shield.bin SCREEN=$(BUILD)/loading.bin BANK4=$(BUILD)/sprites.bank4.bin \
 		BANK5=$(BUILD)/sprites.bank5.bin BANK6=$(BUILD)/bank6.bin \
 		$(foreach p,$(PLANETS),PLANET$(p)=$(BUILD)/planet$(p).bin)
 
