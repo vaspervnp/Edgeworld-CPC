@@ -8,7 +8,7 @@ BUILD  := build
 SRC    := $(wildcard src/*.asm)
 DSK    := $(BUILD)/shield.dsk
 
-.PHONY: all clean test planet-art release
+.PHONY: all clean test planet-art release manual manual-shots
 
 all: $(DSK) planet-art
 
@@ -96,3 +96,10 @@ clean:
 release: $(DSK)
 	mkdir -p release
 	cp $(DSK) release/shieldrunner-$(VERSION).dsk
+
+# the player's manuals: screenshots from the emulator, PDFs by headless Chrome
+manual-shots: $(DSK)
+	python3 tools/manual_shots.py docs/manual/img
+
+manual:
+	python3 tools/mkmanual.py docs/manual/MANUAL.en.md docs/manual/MANUAL.el.md

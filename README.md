@@ -22,6 +22,9 @@ Palace is reused.
 Controls card to print: [`docs/controls-card.html`](docs/controls-card.html)
 (A4 landscape, fold in half).
 
+Player's manual, with screenshots: English [PDF](docs/manual/MANUAL.en.pdf) / [Markdown](docs/manual/MANUAL.en.md),
+Ελληνικά [PDF](docs/manual/MANUAL.el.pdf) / [Markdown](docs/manual/MANUAL.el.md).
+
 ## Playing
 
 You need a CPC 6128, a 6128 Plus, or a CPC with 64K of extra memory (the
@@ -520,6 +523,9 @@ palette, plus the foreground overlays from a second mask image;
 | `tests/harness.py` | Boots the disc in the headless emulator |
 | `tools/cap32_smoke.py` | Smoke test in Caprice32 |
 | `docs/controls-card.html` | The printable controls card |
+| `docs/manual/` | The player's manual, English and Greek: Markdown, PDF and screenshots |
+| `tools/manual_shots.py` | Takes the manual's screenshots in the headless emulator |
+| `tools/mkmanual.py` | Makes the manual's PDFs (Markdown to HTML, printed by headless Chrome) |
 | `release/` | The released disc images |
 | `assets/` | Source art |
 
