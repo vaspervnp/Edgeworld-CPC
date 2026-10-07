@@ -11,11 +11,14 @@ The other files (the planets) go on the disc as they are: the game loads
 them itself, with its own disc code, since the firmware is gone by then.
 
 It stops with a message on a machine without the extra 64K; otherwise it
-shows the loading screen (SCREEN=: 16K of screen memory, with its inks in
+first shows a splash screen (SPLASH=: 16K of screen memory, its inks from
+the file of the same name ending .txt, the pen/firmware table) for 10
+seconds or until Space is pressed, then shows the loading screen (SCREEN=: 16K of screen memory, with its inks in
 the same file name ending .inks, from tools/mkloading.py) in Mode 0 while
 the rest loads: the inks first, so the picture comes in as it loads.
 
 Usage: mkdisc.py out.dsk game.bin NAME=file ...
+  SPLASH=...: shown before anything loads, loaded at &C000
   SCREEN=...: the loading screen, loaded at &C000
   BANK4=..., BANK5=..., BANK6=...: loaded into that extra bank by SHIELD.BAS
   any other NAME=file: written as NAME.BIN   (needs iDSK on the PATH)
@@ -25,6 +28,24 @@ import re
 import shutil
 import subprocess
 import sys
+
+
+def read_inks(screen):
+    """The 16 firmware inks of a screen: from name.inks (one line, commas),
+    or from name.txt (a table: pen, firmware number, ...)."""
+    base = os.path.splitext(screen)[0]
+    if os.path.exists(base + ".inks"):
+        inks = open(base + ".inks").read().strip().split(",")
+    else:
+        inks = [m.group(2) for m in re.finditer(r"(?m)^\s*(\d+)\s+(\d+)\s+&", open(base + ".txt").read())]
+    assert len(inks) == 16, screen
+    return [int(i) for i in inks]
+
+
+def show(n, name, inks):
+    """BASIC lines from n: Mode 0 with the inks, then the picture loaded."""
+    return [f"{n} MODE 0:BORDER 0:" + ":".join(f"INK {i},{c}" for i, c in enumerate(inks)),
+            f'{n + 10} LOAD"{name}.BIN",&C000']
 
 
 def idsk(*args):
@@ -50,11 +71,13 @@ def main():
         'LOCATE 5,11:PRINT "or a CPC with 64K more memory.":END',
     ]
     n = 50
+    if "SPLASH" in files:
+        lines += show(n, "SPLASH", read_inks(files["SPLASH"]))
+        # 10 seconds (TIME counts 300 a second), or until Space (key 47)
+        lines.append(f"{n + 20} T=TIME:WHILE TIME-T<3000 AND INKEY(47)=-1:WEND")
+        n += 30
     if "SCREEN" in files:
-        inks = open(os.path.splitext(files["SCREEN"])[0] + ".inks").read().strip().split(",")
-        assert len(inks) == 16
-        lines.append(f"{n} MODE 0:BORDER 0:" + ":".join(f"INK {i},{c}" for i, c in enumerate(inks)))
-        lines.append(f'{n + 10} LOAD"SCREEN.BIN",&C000')
+        lines += show(n, "SCREEN", read_inks(files["SCREEN"]))
         n += 20
     for name in sorted(files):
         m = re.fullmatch(r"BANK([4-7])", name)
@@ -72,7 +95,7 @@ def main():
     idsk(dsk, "-i", os.path.join(stage, "SHIELD.BAS"), "-t", "0")
     for name, path in sorted(files.items()):
         shutil.copy(path, os.path.join(stage, name + ".BIN"))
-        load = "C000" if name == "SCREEN" else "4000"
+        load = "C000" if name in ("SCREEN", "SPLASH") else "4000"
         idsk(dsk, "-i", os.path.join(stage, name + ".BIN"), "-t", "1", "-c", load, "-e", load)
     idsk(dsk, "-i", os.path.join(stage, "GAME.BIN"), "-t", "1", "-c", "0200", "-e", "0200")
     print(f"{dsk}: SHIELD.BAS, {', '.join(n + '.BIN' for n in sorted(files))}, GAME.BIN")

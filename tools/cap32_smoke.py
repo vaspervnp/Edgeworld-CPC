@@ -3,8 +3,9 @@
 array and floppy controller emulation, the latter with real timing), as
 far as possible from the headless one the tests use.
 
-Boots the disc, takes a screenshot as it loads, one of the title, presses
-fire, takes one of the game a while later, and quits. Needs the Caprice32 snap (the
+Boots the disc, takes screenshots of the splash screen, of the loading
+screen, of the title, presses fire, takes one of the game a while later,
+and quits. Needs the Caprice32 snap (the
 `caprice32` snap's cap32 binary is run inside its confinement, so the disc
 and the typed commands go through its home directory) and a display.
 
@@ -36,7 +37,8 @@ def main(dsk, out, model="2", ram="128"):
     os.chmod(os.path.join(HOME, "smoke.sh"), 0o755)
     shot = "\\(CAP32_SCRNSHOT)"
     boot = "\\(CPC_F1)" + "\n" * 40 if model == "3" else ""    # the Plus menu: BASIC
-    cmd = (boot + 'RUN"SHIELD\n' + WAIT * 150 + shot + WAIT * 400 + shot + " " + WAIT * 300 + shot
+    cmd = (boot + 'RUN"SHIELD\n' + WAIT * 100 + shot + WAIT * 450 + shot + WAIT * 400 + shot
+           + " " + WAIT * 300 + shot
            + "\\(CAP32_EXIT)")
     with open(os.path.join(HOME, "autocmd.txt"), "w") as f:
         f.write(cmd)
@@ -45,7 +47,7 @@ def main(dsk, out, model="2", ram="128"):
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
     os.makedirs(out, exist_ok=True)
     taken = sorted(glob.glob(os.path.join(shots, "*.png")))
-    for name, path in zip(("loading", "title", "game"), taken):
+    for name, path in zip(("splash", "loading", "title", "game"), taken):
         shutil.copy(path, os.path.join(out, f"model{model}_ram{ram}_{name}.png"))
     print(f"model {model}, {ram}K: {len(taken)} screenshots in {out}")
 

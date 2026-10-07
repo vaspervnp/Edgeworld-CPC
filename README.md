@@ -18,7 +18,7 @@ Palace is reused.
 
 ![The four planets](docs/planets.png)
 
-**Version 1.4.** Disc image: [`release/shieldrunner-1.4.dsk`](release/shieldrunner-1.4.dsk). Version 1.4 adds a loading screen; 1.1 redrew the sprites in a chunkier, shaded, black-outlined style; 1.2 made the Runner half as big again (24x36 pixels); 1.3 won back the frame time that cost (faster drawing, at most 5 enemies at once instead of 6) and fixed a rare hang at the end of a planet load. Earlier discs are kept: [1.3](release/shieldrunner-1.3.dsk), [1.2](release/shieldrunner-1.2.dsk), [1.1](release/shieldrunner-1.1.dsk), [1.0](release/shieldrunner-1.0.dsk).
+**Version 1.5.** Disc image: [`release/shieldrunner-1.5.dsk`](release/shieldrunner-1.5.dsk). Version 1.5 shows the Revive8bit splash screen first; 1.4 added a loading screen; 1.1 redrew the sprites in a chunkier, shaded, black-outlined style; 1.2 made the Runner half as big again (24x36 pixels); 1.3 won back the frame time that cost (faster drawing, at most 5 enemies at once instead of 6) and fixed a rare hang at the end of a planet load. Earlier discs are kept: [1.4](release/shieldrunner-1.4.dsk), [1.3](release/shieldrunner-1.3.dsk), [1.2](release/shieldrunner-1.2.dsk), [1.1](release/shieldrunner-1.1.dsk), [1.0](release/shieldrunner-1.0.dsk).
 Controls card to print: [`docs/controls-card.html`](docs/controls-card.html)
 (A4 landscape, fold in half).
 
@@ -125,7 +125,9 @@ assembles the game and writes `build/shield.dsk`. `make release` copies it to
 `release/shieldrunner-$(VERSION).dsk`.
 
 The disc holds `SHIELD.BAS` (the loader: it checks for the extra 64K, shows
-the loading screen `SCREEN.BIN`, loads the sprites into the extra 64K and
+the Revive8bit splash screen `SPLASH.BIN` (`assets/revive8b.scr`, inks in
+`assets/revive8b.txt`) for 10 seconds or until Space is pressed, shows the
+loading screen `SCREEN.BIN`, loads the sprites into the extra 64K and
 runs `GAME.BIN`), `BANK4-6.BIN`, `GAME.BIN` and `PLANET1-4.BIN`, which the
 game loads itself.
 

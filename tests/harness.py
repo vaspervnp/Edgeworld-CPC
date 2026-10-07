@@ -15,6 +15,7 @@ sys.path.insert(0, os.environ.get("CPCEMU_DIR", os.path.expanduser("~/cpcemu")))
 import cpc  # noqa: E402
 
 DSK = os.path.join(ROOT, "build", "shield.dsk")
+SPLASH = os.path.join(ROOT, "assets", "revive8b.scr")      # shown first (tools/mkdisc.py)
 SYM = os.path.join(ROOT, "build", "shield.sym")
 
 FB_W = cpc.FB_WIDTH
@@ -44,9 +45,23 @@ class Game:
         self.c.run_frames(150)
         self.c.insert_disc(DSK)
         self.c.type_text('RUN"SHIELD\n')
+        self.skip_splash()
         self.wait_state(ST_TITLE, 3000)
         if start:
             self.start()
+
+    def skip_splash(self):
+        """Once the splash screen is up, press Space rather than wait the
+        10 seconds it stays."""
+        splash = open(SPLASH, "rb").read()
+        for _ in range(200):
+            self.c.run_frames(5)
+            if bytes(self.c.read_ram(0xC000, len(splash))) == splash:
+                self.c.key_down(" ")
+                self.c.run_frames(6)
+                self.c.key_up(" ")
+                return
+        raise AssertionError("no splash screen")
 
     def wait_state(self, state, frames):
         for _ in range(frames):

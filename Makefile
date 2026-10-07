@@ -1,5 +1,5 @@
 PYTHON ?= python3
-VERSION := 1.4
+VERSION := 1.5
 export VERSION
 RASM   ?= rasm
 IDSK   ?= iDSK
@@ -71,8 +71,12 @@ $(BUILD)/shield.bin: $(SRC) $(BUILD)/hud.rle $(BUILD)/sprites.inc $(BUILD)/table
 $(BUILD)/loading.bin $(BUILD)/loading.inks &: assets/loading_render.png assets/logo.png tools/mkloading.py tools/cpcpal.py tools/pens.py | $(BUILD)
 	$(PYTHON) tools/mkloading.py assets/loading_render.png assets/logo.png $(BUILD)/loading.bin $(BUILD)/loading.inks $(BUILD)/loading.png
 
-$(DSK): $(BUILD)/shield.bin $(BUILD)/sprites.inc $(BUILD)/bank6.bin $(PLANETS:%=$(BUILD)/planet%.bin) $(BUILD)/loading.bin tools/mkdisc.py
-	$(PYTHON) tools/mkdisc.py $@ $(BUILD)/shield.bin SCREEN=$(BUILD)/loading.bin BANK4=$(BUILD)/sprites.bank4.bin \
+# The splash screen shown first (assets/revive8b.scr, inks in revive8b.txt).
+SPLASH := assets/revive8b.scr
+
+$(DSK): $(BUILD)/shield.bin $(BUILD)/sprites.inc $(BUILD)/bank6.bin $(PLANETS:%=$(BUILD)/planet%.bin) $(BUILD)/loading.bin \
+		$(SPLASH) $(SPLASH:.scr=.txt) tools/mkdisc.py
+	$(PYTHON) tools/mkdisc.py $@ $(BUILD)/shield.bin SPLASH=$(SPLASH) SCREEN=$(BUILD)/loading.bin BANK4=$(BUILD)/sprites.bank4.bin \
 		BANK5=$(BUILD)/sprites.bank5.bin BANK6=$(BUILD)/bank6.bin \
 		$(foreach p,$(PLANETS),PLANET$(p)=$(BUILD)/planet$(p).bin)
 
