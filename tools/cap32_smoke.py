@@ -37,7 +37,7 @@ def main(dsk, out, model="2", ram="128"):
     os.chmod(os.path.join(HOME, "smoke.sh"), 0o755)
     shot = "\\(CAP32_SCRNSHOT)"
     boot = "\\(CPC_F1)" + "\n" * 40 if model == "3" else ""    # the Plus menu: BASIC
-    cmd = (boot + 'RUN"SHIELD\n' + WAIT * 100 + shot + WAIT * 450 + shot + WAIT * 400 + shot
+    cmd = (boot + 'RUN"SHIELD\n' + WAIT * 100 + shot + WAIT * 250 + shot + WAIT * 500 + shot
            + " " + WAIT * 300 + shot
            + "\\(CAP32_EXIT)")
     with open(os.path.join(HOME, "autocmd.txt"), "w") as f:
