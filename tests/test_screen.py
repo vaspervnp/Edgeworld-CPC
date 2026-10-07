@@ -46,6 +46,16 @@ SKY_BAND_LINES = (0, 36, 88)        # first line of each sky colour
 IDLE_LOOP = 10          # NOPs per turn of the wait loop in flip_and_wait
 MARKER_LINES = range(24, 27)        # HUD lines with the radar view marker
 REC_SIZE = 4
+TINY_RECS = 1 + 8 * REC_SIZE            # src/tiny.asm
+
+
+def tiny_first():
+    """The first tiny frame (bolts, bombs, rocks: drawn over everything, at
+    even x, by src/tiny.asm)."""
+    for line in open(os.path.join(ROOT, "build", "sprites.inc")):
+        if line.startswith("SPR_TINY equ"):
+            return int(line.split()[-1])
+    raise AssertionError("no SPR_TINY")
 RADAR_X0, RADAR_X1 = 16, 144
 VIEW_CENTRE = 20
 SPARES_LINES = range(41, 46)        # HUD lines with the spare Runner icons
@@ -84,6 +94,7 @@ class Expected:
         self.planet = [bytes(row) * 2 for row in indexed_rows(PLANET.format(n))]
         self.fg = [bytes(row) * 2 for row in indexed_rows(PLANET_FG.format(n))]
         self.frames = sprite_frames()
+        self.tiny = tiny_first()
         self.hud = [bytes(hud_pal[p] for p in row) for row in indexed_rows(HUD)]
         self.marker = hud_pal[4]
         self.radar_bg = hud_pal[1]
@@ -106,20 +117,29 @@ class Expected:
         sprite records (frame, world x, y) drawn over it."""
         x0 = (pos * 4) % MAP_W
         pens = [bytearray(r[x0:x0 + VIEW_W]) for r in self.planet]
-        for frame, wx, wy in records:
+
+        def draw(frame, wx, wy):
             sx = (wx - pos * 4) % MAP_W
             if sx >= 512:
                 sx -= MAP_W
+            if frame >= self.tiny:
+                sx &= ~1                    # tiny ones: at even x
             for dy, row in enumerate(self.frames[frame]):
                 for dx, pen in enumerate(row):
                     x = sx + dx
                     if pen and 0 <= x < VIEW_W:
                         pens[wy + dy][x] = pen & 15     # 16: opaque black
+        for frame, wx, wy in records:
+            if frame < self.tiny:
+                draw(frame, wx, wy)
         for y in range(PLAY_H):
             fg = self.fg[y]
             for x in range(VIEW_W):
                 if fg[x0 + x]:
                     pens[y][x] = self.planet[y][x0 + x]
+        for frame, wx, wy in records:       # over the foreground too
+            if frame >= self.tiny:
+                draw(frame, wx, wy)
         return [bytes(self.colour(y, p) for p in row) for y, row in enumerate(pens)]
 
     def hud_line(self, y, pos, spares, gens, secs=0, score=0, planet=1):
@@ -183,11 +203,12 @@ class Screen:
         out = []
         for side in ("FRONT", "BACK"):
             pos = g.word(side + "_POS")
-            lst = g.c.read_ram(g.word(side + "_LIST"), 1 + 12 * REC_SIZE)
             recs = []
-            for i in range(lst[0]):
-                r = lst[1 + i * REC_SIZE:1 + (i + 1) * REC_SIZE]
-                recs.append((r[0], r[1] | r[2] << 8, r[3]))
+            for name, size in (("_LIST", 1 + 12 * REC_SIZE), ("_TINY", TINY_RECS)):
+                lst = g.c.read_ram(g.word(side + name), size)
+                for i in range(lst[0]):
+                    r = lst[1 + i * REC_SIZE:1 + (i + 1) * REC_SIZE]
+                    recs.append((r[0], r[1] | r[2] << 8, r[3]))
             out.append((pos, recs))
         return out
 

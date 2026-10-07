@@ -837,10 +837,14 @@ list_begin:
     ld (list_ptr),hl
     xor a
     ld (list_count),a
+    ld (tiny_new),a
     ret
 
-; Append frame A at world x HL (pixels) and y C. Trashes A, DE, HL.
+; Append frame A at world x HL (pixels) and y C. Trashes A, DE, HL. Tiny
+; frames (bolts, bombs, rocks) go to their own list (tiny.asm).
 list_add:
+    cp SPR_TINY
+    jp nc,tiny_add
     ex de,hl
     ld hl,(list_ptr)
     ld (hl),a

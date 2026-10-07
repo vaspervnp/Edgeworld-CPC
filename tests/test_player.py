@@ -233,7 +233,63 @@ def test():
     assert p.b("RN_STATE") == ABSENT and p.b("PL_SPARES") == 0
     print("spare Runners: ok")
     assert p.g.word("LATE_FLIPS") == 0, "late flips"
+    across_ring_end()
     print("player: ok, no late flips")
+
+
+def ring_end(pos):
+    """(character row, screen byte column) where the 2K screen ring ends,
+    with the view at scroll position pos."""
+    left = (2048 - 2 * pos) % 2048          # ring bytes from the view's first one
+    return left // 80, left % 80
+
+
+def across_ring_end():
+    """The waiting Runner drawn across the end of the screen ring: the row
+    that crosses it drawn by the generic loop, the lines above and below by
+    the compiled routine (entered and stopped part way). Its body covers
+    rows 7-9, its legs rows 9-12."""
+    p = Player()
+    g, c = p.g, p.g.c
+    for row, part_x in ((8, 6), (10, 4 + 4)):     # the body, the legs
+        # ride (unchecked, then picked up again) until the ring ends in that
+        # row, mid-view
+        if g.byte("PL_MODE") != MODE_MOUNTED:       # back on the Runner
+            rn = (g.word("PL_X") - SADDLE * 8) & 0x1FFF
+            c.write_ram(g.sym["RN_X"], bytes([rn & 255, rn >> 8]))
+            c.write_ram(g.sym["RN_STATE"], bytes([IDLE]))
+            p.press([cpc.KEY_DOWN, " "], 4)
+            c.run_frames(80)
+        assert g.byte("PL_MODE") == MODE_MOUNTED
+        c.key_down(cpc.KEY_RIGHT)
+        for _ in range(3000):
+            c.run_frames(2)
+            r, x = ring_end(g.word("SCROLL_POS") + 8)    # it coasts about 8 more
+            if r == row and 30 <= x < 50:
+                break
+        c.key_up(cpc.KEY_RIGHT)
+        c.run_frames(80)
+        pos = g.word("SCROLL_POS")
+        r, x = ring_end(pos)
+        assert r == row and 20 <= x < 60, (r, x)
+        p.press([cpc.KEY_DOWN, " "], 4)     # off: the Runner waits
+        c.run_frames(4)
+        # put the Runner's part across it
+        rn = ((pos * 4 + (x - part_x) * 2) % 1024) * 8
+        c.write_ram(g.sym["RN_X"], bytes([rn & 255, rn >> 8]))
+        c.write_ram(g.sym["RN_STATE"], bytes([IDLE]))
+        hits = 0
+        split = g.sym["DC_SPLIT"]
+        p.screen = Screen(g)
+        p.pos = p.screen.check(g.word("SCROLL_POS"))
+        for _ in range(12):
+            for _ in range(19968 // 4):     # does it take the split path?
+                c.run_us(4)
+                hits += split <= c.pc < split + 64
+            p.pos = p.screen.check(p.pos)
+        assert hits, f"row {row}: the Runner did not cross the end of the ring"
+    assert g.word("LATE_FLIPS") == 0, "late flips"
+    print("across the end of the screen ring: ok")
 
 
 if __name__ == "__main__":

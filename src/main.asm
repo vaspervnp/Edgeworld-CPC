@@ -1,4 +1,4 @@
-; Shieldrunner for the Amstrad CPC 6128, version 1.2.
+; Shieldrunner for the Amstrad CPC 6128, version 1.3.
 ; Ride the Runner round four planets, shooting what comes and recharging
 ; the shield generators until the time runs out. See README.md for how it
 ; plays and how it works; this file has the start-up and the main loop.
@@ -65,7 +65,9 @@ main_loop:
     call player_sprites
     call list_end
     call scroll_update_back
+    call tiny_undo
     call render_sprites
+    call tiny_draw
     call flip_and_wait
     call swap_buffers
     call hud_update
@@ -119,4 +121,7 @@ hud_data:
     org #5000+HUD_ROWS*80
     include "title.asm"
     assert $ <= #5800
+    org #5800+HUD_ROWS*80
+    include "tiny.asm"
+    assert $ <= #6000
 end_of_program:

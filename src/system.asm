@@ -94,6 +94,13 @@ isr:
     cp INTS_PER_FRAME
     jr c,.dispatch
     ld (hl),INT_UNSYNCED
+    ; lost the frame: if it went mid-split, frame A's settings (R7 past its
+    ; end) would leave the CRTC without a VSYNC to find it again by, for
+    ; good; a plain whole frame has one
+    ld a,TOTAL_ROWS-1
+    CRTC_SET 4
+    ld a,VSYNC_ROW
+    CRTC_SET 7
     jp isr_exit
 .dispatch:
     add a,a

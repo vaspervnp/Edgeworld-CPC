@@ -552,12 +552,12 @@ draw_sprite:
     jr .clipped
 .whole:
     ld (ds_n),a
+    ld (ds_raw),de
     push de
     call ring_offset
     call draw_compiled
     pop de
-    ret nc
-    jr .generic
+    ret
 .clipped:
     add a,a                 ; source += skipped bytes (mask and pixels each)
     add a,e
@@ -626,8 +626,12 @@ ring_offset:
     ld (ds_o),hl
     ret
 
-; Draw the whole sprite with its compiled routine, unless one of its rows
-; would run past the end of the 2K screen ring: then return with carry set.
+; Draw the whole sprite with its compiled routine. A row that would run
+; past the end of the 2K screen ring (one at most: a sprite is narrower than
+; a row) cannot be: its lines are drawn by the generic loop from the raw
+; data, and the compiled routine draws the lines above it (stopped there by
+; a RET written over the start of the next line's code, then put back) and
+; those below (entered at that line, from the line table before the code).
 draw_compiled:
     ld a,(cl_full)
     inc a
@@ -637,6 +641,8 @@ draw_compiled:
     jr z,.rows
     inc b
 .rows:
+    ld a,b
+    ld (dc_rows),a
     ld a,(ds_w)
     ld c,a
     ld hl,(ds_o)            ; the row's ring offset
@@ -649,13 +655,18 @@ draw_compiled:
     ld a,l
     add a,c
     jr nc,.fits
-    jr z,.fits              ; ends exactly at the end of the ring
-    scf
-    ret
+    jp nz,dc_split          ; past the end (not exactly at it)
 .fits:
     add hl,de
     djnz .row
-    ; HL = page | ring block | first line, ring offset low byte
+    call dc_top
+    ld de,(ds_code)
+    ld (.go+1),de
+.go:
+    jp 0
+
+; HL = the screen address of the sprite's first byte on its first line.
+dc_top:
     ld a,(cl_l0)
     add a,a
     add a,a
@@ -669,11 +680,156 @@ draw_compiled:
     ld a,(back_page)
     or c
     ld h,a
-    ld de,(ds_code)
-    ld (.go+1),de
-.go:
-    call 0
+    ret
+
+; Row B (counting down from dc_rows) crosses the end of the ring.
+dc_split:
+    ld a,(dc_rows)
+    sub b
+    ld (dc_k),a
+    ; its lines: from dc_a, dc_n of them
     or a
+    jr nz,.later
+    ld (dc_a),a
+    ld a,(cl_n0)
+    jr .count
+.later:
+    dec a
+    add a,a
+    add a,a
+    add a,a
+    ld c,a
+    ld a,(cl_n0)
+    add a,c
+    ld (dc_a),a
+    ld a,b
+    cp 1
+    ld a,8
+    jr nz,.count            ; not the last row: a whole one
+    ld a,(cl_nlast)
+    or a
+    jr nz,.count
+    ld a,8
+.count:
+    ld (dc_n),a
+    ; the line table: 3 bytes a line, just before the code
+    ld a,(sp_h)
+    ld l,a
+    ld h,0
+    ld e,l
+    ld d,h
+    add hl,hl
+    add hl,de
+    ex de,hl
+    ld hl,(ds_code)
+    or a
+    sbc hl,de
+    ld (dc_table),hl
+    ; the lines above, compiled, stopped at line dc_a
+    ld a,(dc_a)
+    or a
+    jr z,.middle
+    call dc_entry
+    ld a,(hl)
+    ld (dc_saved),a
+    ld (dc_patched),hl
+    ld (hl),#C9             ; ret
+    call dc_top
+    ld de,(ds_code)
+    ld (.go_top+1),de
+.go_top:
+    call 0
+    ld hl,(dc_patched)
+    ld a,(dc_saved)
+    ld (hl),a
+.middle:
+    ; the crossing row's lines, generic: its ring offset...
+    ld hl,(ds_o)
+    ld de,VIEW_BYTES
+    ld a,(dc_k)
+    or a
+    jr z,.ring
+    ld b,a
+.down:
+    add hl,de
+    djnz .down
+.ring:
+    ld (ds_o),hl
+    ; ...the source: dc_a lines of (mask, pixels) pairs on
+    ld a,(ds_w)
+    add a,a
+    ld e,a
+    ld d,0
+    ld hl,(ds_raw)
+    ld a,(dc_a)
+    or a
+    jr z,.source
+    ld b,a
+.skip:
+    add hl,de
+    djnz .skip
+.source:
+    push hl
+    ld a,(ds_n)
+    call dl_setup
+    ld a,(ds_n)
+    ld (db_n+1),a
+    ld c,0                  ; from the row's first line, or the sprite's
+    ld a,(dc_k)
+    or a
+    jr nz,.first_line
+    ld a,(cl_l0)
+    add a,a
+    add a,a
+    add a,a
+    ld c,a
+.first_line:
+    pop de
+    ld a,(dc_n)
+    call draw_band
+    ; the lines below, compiled, from line dc_a + dc_n
+    ld a,(dc_a)
+    ld hl,dc_n
+    add a,(hl)
+    ld hl,sp_h
+    cp (hl)
+    ret nc                  ; none
+    call dc_entry
+    push hl
+    ld hl,(ds_o)            ; the next row, its first line
+    ld de,VIEW_BYTES
+    add hl,de
+    ld e,c                  ; at the cursor's column
+    ld d,0
+    add hl,de
+    ld a,h
+    and 7
+    ld h,a
+    ld a,(back_page)
+    or h
+    ld h,a
+    pop de
+    ld (.go_below+1),de
+.go_below:
+    jp 0
+
+; HL = where the code for line A starts, C = the cursor's byte column there.
+dc_entry:
+    ld l,a
+    ld h,0
+    ld e,l
+    ld d,h
+    add hl,hl
+    add hl,de
+    ld de,(dc_table)
+    add hl,de
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ld c,(hl)
+    ld hl,(ds_code)
+    add hl,de
     ret
 
 ; Move ds_o to the next character row; C = 0 (its first line).
@@ -862,6 +1018,14 @@ ds_off:  db 0
 ds_cnt:  db 0
 ds_o:    dw 0
 ds_code: dw 0
+ds_raw:  dw 0               ; the raw data of the version drawn
+dc_rows: db 0               ; draw_compiled: rows the sprite covers...
+dc_k:    db 0               ; ...the one crossing the end of the ring...
+dc_a:    db 0               ; ...its first line in the sprite...
+dc_n:    db 0               ; ...and how many
+dc_table: dw 0              ; the line table
+dc_patched: dw 0            ; the byte made a RET...
+dc_saved: db 0              ; ...and what it was
 
 ; What each buffer shows: the records, and the layouts drawn.
 list_a:  db 0

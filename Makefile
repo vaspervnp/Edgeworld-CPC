@@ -1,5 +1,5 @@
 PYTHON ?= python3
-VERSION := 1.2
+VERSION := 1.3
 export VERSION
 RASM   ?= rasm
 IDSK   ?= iDSK
@@ -47,7 +47,7 @@ $(BUILD)/sound.inc: tools/gen_music.py | $(BUILD)
 assets/sprites.png assets/sprites.json &: tools/gen_sprites.py tools/pens.py tools/cpcpal.py
 	$(PYTHON) tools/gen_sprites.py assets/sprites.png assets/sprites.json
 
-$(BUILD)/sprites.inc: assets/sprites.png assets/sprites.json tools/spritec.py tools/cpcpal.py | $(BUILD)
+$(BUILD)/sprites.inc $(BUILD)/sprites.tiny &: assets/sprites.png assets/sprites.json tools/spritec.py tools/cpcpal.py | $(BUILD)
 	rm -f $(BUILD)/sprites.bank*.bin
 	$(PYTHON) tools/spritec.py assets/sprites.png assets/sprites.json $(BUILD)/sprites
 

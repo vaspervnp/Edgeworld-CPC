@@ -107,11 +107,19 @@ scroll_init:
     ld (front_layouts),hl
     ld hl,layouts_b
     ld (back_layouts),hl
+    ld hl,tiny_a
+    ld (front_tiny),hl
+    ld hl,tiny_b
+    ld (back_tiny),hl
     xor a                   ; no sprites shown in either buffer
     ld (list_a),a
     ld (list_b),a
     ld (layouts_a),a
     ld (layouts_b),a
+    ld (tiny_a),a
+    ld (tiny_a+TINY_RECS),a
+    ld (tiny_b),a
+    ld (tiny_b+TINY_RECS),a
     ld a,(front_page)
     call fill_page
     ld a,(back_page)
@@ -220,17 +228,19 @@ col=col+1
 scroll_pos: dw 0            ; position to show next
 scroll_dir: db 0            ; columns per displayed frame: -1, 0 or 1
 
-; Buffer state: position shown, page high byte, R12 page bits, sprite list
-; and sprite layouts (BUF_STATE bytes each, same layout, swapped by
-; swap_buffers).
-BUF_STATE equ 8
+; Buffer state: position shown, page high byte, R12 page bits, sprite list,
+; sprite layouts and tiny sprites (BUF_STATE bytes each, same layout,
+; swapped by swap_buffers).
+BUF_STATE equ 10
 front_pos:  dw 0
 front_page: db 0
 front_r12:  db 0
 front_list: dw 0
 front_layouts: dw 0
+front_tiny: dw 0
 back_pos:   dw 0
 back_page:  db 0
 back_r12:   db 0
 back_list:  dw 0
 back_layouts: dw 0
+back_tiny:  dw 0

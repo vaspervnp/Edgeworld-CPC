@@ -16,7 +16,7 @@ Palace is reused.
 
 ![The four planets](docs/planets.png)
 
-**Version 1.2.** Disc image: [`release/shieldrunner-1.2.dsk`](release/shieldrunner-1.2.dsk). Version 1.1 redrew the sprites in a chunkier, shaded, black-outlined style; 1.2 makes the Runner half as big again (24x36 pixels). Earlier discs are kept: [1.1](release/shieldrunner-1.1.dsk), [1.0](release/shieldrunner-1.0.dsk).
+**Version 1.3.** Disc image: [`release/shieldrunner-1.3.dsk`](release/shieldrunner-1.3.dsk). Version 1.1 redrew the sprites in a chunkier, shaded, black-outlined style; 1.2 made the Runner half as big again (24x36 pixels); 1.3 wins back the frame time that cost (faster drawing, at most 5 enemies at once instead of 6) and fixes a rare hang at the end of a planet load. Earlier discs are kept: [1.2](release/shieldrunner-1.2.dsk), [1.1](release/shieldrunner-1.1.dsk), [1.0](release/shieldrunner-1.0.dsk).
 Controls card to print: [`docs/controls-card.html`](docs/controls-card.html)
 (A4 landscape, fold in half).
 
@@ -246,7 +246,11 @@ to VSYNC; counted from the first playfield line they land on lines 242
 them. When the main loop has queued a
 buffer and two frames have passed, the VSYNC interrupt takes its address and
 the next interrupt gives it to the CRTC for the coming frame. That locks the
-game to 25 fps.
+game to 25 fps. An interrupt that comes round a sixth time without a VSYNC
+(the count lost, after a disc load with interrupts off) waits for the next
+one, and sets the CRTC back to a plain whole frame meanwhile: lost in the
+middle of the split, frame A's settings (its VSYNC row past its end) would
+otherwise leave no VSYNC to find, and the game would hang.
 
 **HUD split.** Each 312-line frame is cut into two CRTC frames: frame A is
 the 17 playfield rows, frame B the 8 HUD rows plus border, with VSYNC on its
@@ -282,8 +286,13 @@ in the 6128's extra RAM banks, paged in at `&4000` while sprites are drawn
 (the CRTC keeps showing the HUD from base RAM there). A sprite clipped at the
 edge of the view, or one with a line running off the end of the 2K screen
 ring, is drawn by a generic masked loop from the raw data instead, stored
-as (mask, pixels) byte pairs so opaque black needs nothing special. Sprites
-live in world coordinates.
+as (mask, pixels) byte pairs so opaque black needs nothing special. Only
+one character row of a sprite can cross the end of the ring (a sprite is
+narrower than a row), so only that row's lines go the slow way: a table
+before each compiled routine gives where each line's code starts and the
+cursor's column there, so the routine draws the lines above (stopped by a
+RET written over the next line's first byte, then put back) and is entered
+again below. Sprites live in world coordinates.
 
 Each screen buffer keeps the sprites it shows and their cell layout (which
 map columns and character rows they cover). Before the buffer is drawn
@@ -301,6 +310,15 @@ edge, which is the saddle whichever way it faces. Only the legs animate, so
 the Runner takes 10 small leg frames and 4 body frames rather than 18 whole
 ones (whole frames would not fit the extra RAM at this size), and the
 restore covers the legs' own width instead of the Runner's.
+
+The smallest sprites, the rider's bolts and the enemies' bombs and rocks
+(`src/tiny.asm`), skip all that: there can be eight at once and the record,
+layout and cell restore would cost as much for each as for a big sprite.
+They are drawn last, over everything (the foreground too), at even x,
+from (mask, pixels) pairs in base RAM, saving each byte they cover with its
+address; before that buffer is drawn again the saved bytes go back, last
+first. Bolt collisions test the distance across first, so a bolt far from
+an enemy costs a few instructions.
 
 **Generators.** Generators are 64 columns apart and the view is 40, so only
 one is ever on screen: its core is drawn in pen 2, which nothing else uses,
@@ -352,9 +370,9 @@ about 600 bytes.
 **Player.** Positions are in eighths of a pixel, so speeds can be
 fractional: the Runner accelerates to 4 pixels a frame (the scroll speed)
 and the camera moves a column a frame to keep it centred; on foot the
-camera stops. Bolts are sprites too (up to 4).
+camera stops. Bolts are tiny sprites (up to 4; see Sprites).
 
-**Enemies.** Up to 6 enemies (8 bytes each: type, x, y, hit points,
+**Enemies.** Up to 5 enemies (8 bytes each: type, x, y, hit points,
 timer, animation and direction, cell drop) and 4 missiles, updated every
 frame through a jump table by type; a type table gives each its frame,
 size, hit points, damage and points. Collisions are box overlaps in world
@@ -400,11 +418,14 @@ more when sprites are clipped or cross the end of the screen ring), sprite
 bookkeeping about 3K, interrupts about 2.5K, foreground up to 3.5K when
 sprites pass behind it, game logic about 3K, sound about 1.3K. The heaviest
 case is a late planet with breaches: a breach wave and the carrier on top
-of the ambient enemies (6 enemies, missiles, bolts), with the waiting
-Runner beside a generator. There a frame can now run late: in bot playtests
-on planets 2-4 most runs have none, a few have 4 to 19 over a planet (each
-one frame shown for 3 VSYNCs instead of 2). Before the Runner grew (1.1)
-there were none. The restore stays the main optimisation target.
+of the ambient enemies (5 enemies, missiles, bolts), with the waiting
+Runner beside a generator. The bigger Runner (1.2) made frames run late
+there; 1.3 won most of it back (the ring-end drawing, tiny sprites, the
+quicker bolt test) and allows 5 enemies at once instead of 6, which only
+matters at those peaks. In bot playtests (6 skilled runs and a keeper on
+each of planets 2-4) there are 6 late frames in all, each one frame shown
+for 3 VSYNCs instead of 2; 1.1 had none. The restore stays the main
+optimisation target.
 
 **Tiles.** A tile is one CRTC character: 4 Mode 0 pixels by 8 lines, 16 bytes.
 The map is stored column-major, one byte per cell, with a table of column
@@ -422,6 +443,7 @@ palette, plus the foreground overlays from a second mask image;
 | `src/scroll.asm` | Column drawing, buffer catch-up and flips |
 | `src/system.asm` | Interrupt handler: CRTC split, rasters, flips; keyboard and joystick |
 | `src/sprites.asm` | Sprite engine: restore, masked drawing, foreground |
+| `src/tiny.asm` | Tiny sprites (bolts, bombs, rocks): drawn over everything, saved bytes put back |
 | `src/player.asm` | The player: riding, on foot, recharging, bolts, whistle, camera; the sprite list |
 | `src/generators.asm` | Shield generators: drain, states, breaches, core colour, radar dots, SHIELD gauge |
 | `src/enemies.asm` | Enemies, missiles, explosions, energy cells; spawner; collisions, hits, ENERGY bar |
@@ -472,11 +494,11 @@ palette, plus the foreground overlays from a second mask image;
 |-------|-----|
 | `&0038` | Interrupt handler vector |
 | `&0040-&01FF` | Stack |
-| `&0200-&3FFF` | Code, tables, sound driver and music, disc loader, the current planet's header, the title logo (about 15K used, up to `&3D2C`) |
-| `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block). The rest of the blocks holds code and data that never page a bank and that the interrupt does not use: block 0 the packed HUD and the text code, block 1 game.asm, block 2 title.asm; blocks 3-7 are free |
+| `&0200-&3FFF` | Code, tables, sound driver and music, disc loader, the current planet's header, the title logo (about 15K used, up to `&3CB4`) |
+| `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block). The rest of the blocks holds code and data that never page a bank and that the interrupt does not use: block 0 the packed HUD and the text code, block 1 game.asm, block 2 title.asm, block 3 tiny.asm (tiny sprites, with both buffers' saved bytes); blocks 4-7 are free |
 | `&8000-&BFFF` | Playfield buffer 2 (and, with buffer 1, where a planet file is read before it goes into bank 7) |
 | `&C000-&FFFF` | Playfield buffer 1 |
-| Extra RAM 4-6 | Sprites: compiled routines and raw (mask, pixels) data (43K, 41 frames) |
+| Extra RAM 4-6 | Sprites: compiled routines with their line tables, and raw (mask, pixels) data (46K, 35 frames) |
 | Extra RAM 7 | The current planet, loaded from disc: map, header, tiles, foreground (9.7K to 11K) |
 
 The CRTC always reads base RAM, so the HUD stays on screen when one of the

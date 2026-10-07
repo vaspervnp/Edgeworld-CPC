@@ -29,6 +29,7 @@ FPS = 25
 NUM_GENS = 4
 GEN_ENTRY = 5
 MODE_MOUNTED, MODE_FOOT, MODE_MOUNTING, MODE_CHARGING = range(4)
+MAX_ENEMIES = 5
 RUNNER_MID, SADDLE = 12, 8         # the ridden Runner's middle, the rider on it
 RUNNER_IDLE, RUNNER_COMING = 1, 2
 TRACKER, CRAWLER, THROWER, BOOM = 2, 3, 4, 6
@@ -68,15 +69,15 @@ class Bot:
 
     def trackers_over(self, px, reach=24):
         """Trackers within reach pixels either side of x px."""
-        raw = self.g.bytes("ENEMIES", 8 * 6)
-        return [i for i in range(6) if raw[8 * i] == TRACKER
+        raw = self.g.bytes("ENEMIES", 8 * MAX_ENEMIES)
+        return [i for i in range(MAX_ENEMIES) if raw[8 * i] == TRACKER
                 and abs(self.towards((raw[8 * i + 1] | raw[8 * i + 2] << 8) - px)) < reach]
 
     def nearest_hostile(self, px):
         """(signed dx, y, type) of the nearest enemy that fights, or None."""
-        raw = self.g.bytes("ENEMIES", 8 * 6)
+        raw = self.g.bytes("ENEMIES", 8 * MAX_ENEMIES)
         best = None
-        for i in range(6):
+        for i in range(MAX_ENEMIES):
             kind = raw[8 * i]
             if 0 < kind < BOOM:
                 dx = self.towards((raw[8 * i + 1] | raw[8 * i + 2] << 8) + 4 - px)

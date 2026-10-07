@@ -42,7 +42,7 @@ def clear_planet(f):
     """Run the time out with the shield up; wait for the end message."""
     g = f.g
     g.c.write_ram(g.sym["SPAWN_ON"], b"\x00")
-    g.c.write_ram(g.sym["ENEMIES"], bytes(8 * 6))
+    g.c.write_ram(g.sym["ENEMIES"], bytes(8 * 5))
     g.c.write_ram(g.sym["TIME_SECS"], bytes([2, 0]))
     for _ in range(300):
         f.frames(1)

@@ -170,12 +170,15 @@ CARRIER.append([r.replace("eYeYeYeYeYeYeYeY", "YeYeYeYeYeYeYeYe")
                 .replace("....YY....YY....", "....rr....rr....") for r in CARRIER[0]])
 
 MISSILES = {
-    "bomb": ["rr", "YY", "YY", "rr"],
-    "rock": [".ee.", "eyyK", "eeyK", ".KK."],
     "boom0": ["...Y....", ".Y.oY.Y.", "..oroo..", "YoRwwroY", ".orwwRo.", "..ooro..", ".Y.Yo.Y.", "....Y..."],
     "boom1": ["Y..o..Y.", "..R..o..", ".o....R.", "o..r...o", "...o..o.", ".R....o.", "..o..R..", "Y..R...Y"],
     "cell": [".GG.", "GwwG", "GGGg", "GwwG", "GGGg", ".gg."],
+    "bomb": ["rr", "YY", "YY", "rr"],
+    "rock": [".ee.", "eyyK", "eeyK", ".KK."],
 }
+# Small, fast and many: drawn at even x straight over everything, saving
+# what they cover (src/tiny.asm), not as sprites; numbered last.
+TINY = ("bomb", "rock", "shot_h", "shot_v", "shot_d", "shot_dl")
 
 SHOTS = {
     "shot_h": ["YwwY", "YwwY"],
@@ -343,9 +346,13 @@ def main(sheet_path, json_path):
             for x, pen in enumerate(row):
                 px[x0 + x, y] = pen
         meta.append({"name": name, "x": x0, "y": 0, "w": w, "h": h})
+        if name in TINY:
+            meta[-1]["tiny"] = True
         if dx:
             meta[-1]["dx"] = dx[0]
         x0 += w
+    tiny = [i for i, m in enumerate(meta) if m.get("tiny")]
+    assert tiny == list(range(len(meta) - len(TINY), len(meta))), "tiny frames go last"
     img.save(sheet_path)
     with open(json_path, "w") as f:
         json.dump(meta, f, indent=1)

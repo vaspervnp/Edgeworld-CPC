@@ -20,7 +20,7 @@
 ;
 ; x positions are world pixels (0-1023), y the top line.
 
-MAX_ENEMIES   equ 6
+MAX_ENEMIES   equ 5
 EN_SIZE       equ 8         ; type, x (2), y, hp, timer, anim, drop
 MAX_MISSILES  equ 4
 MS_SIZE       equ 7         ; type, x (2), y * 4 (2), dx, dy * 4
@@ -976,6 +976,21 @@ collide_shots:
     jr z,.next_enemy
     cp E_HOSTILE
     jr nc,.next_enemy
+    ; quickly: too far across to touch? (the widest is 16 pixels)
+    ld hl,(ca_x)
+    ld e,(ix+1)
+    ld d,(ix+2)
+    or a
+    sbc hl,de
+    ld de,4
+    add hl,de
+    ld a,h
+    and 3
+    jr nz,.next_enemy
+    ld a,l
+    cp 4+16
+    jr nc,.next_enemy
+    ld a,(ix+0)             ; the type, for TYPE_ENTRY
     push bc
     TYPE_ENTRY
     call enemy_box_b
