@@ -16,7 +16,7 @@ Palace is reused.
 
 ![The four planets](docs/planets.png)
 
-**Version 1.0.** Disc image: [`release/shieldrunner-1.0.dsk`](release/shieldrunner-1.0.dsk).
+**Version 1.1.** Disc image: [`release/shieldrunner-1.1.dsk`](release/shieldrunner-1.1.dsk). Version 1.1 redraws the sprites in a chunkier, shaded, black-outlined style; [1.0](release/shieldrunner-1.0.dsk) is kept.
 Controls card to print: [`docs/controls-card.html`](docs/controls-card.html)
 (A4 landscape, fold in half).
 
@@ -269,7 +269,11 @@ the playfield palette back.
 
 **Sprites.** Software sprites, pre-shifted: each frame is stored as drawn and
 shifted one pixel right, so any x is drawn with whole bytes, pen 0
-transparent. `tools/spritec.py` compiles every frame into straight-line Z80:
+transparent. The sheet has a seventeenth pen, black drawn opaque, for the
+outlines and dark shading that give the sprites their chunky, 8-bit
+arcade look (the Runner, the rider and the mounted frames are outlined all
+round by `tools/gen_sprites.py`; the enemies have their black drawn in).
+`tools/spritec.py` compiles every frame into straight-line Z80:
 `LD (HL),n` for solid bytes, `AND`/`OR` with immediates for bytes with
 transparent pixels, nothing for empty ones, walking each line in whichever
 direction is closer so there is no rewind, and stepping to the next line
@@ -278,7 +282,8 @@ in the 6128's extra RAM banks, paged in at `&4000` while sprites are drawn
 (the CRTC keeps showing the HUD from base RAM there). A sprite clipped at the
 edge of the view, or one with a line running off the end of the 2K screen
 ring (rare), is drawn by a generic masked loop from the raw pixels instead,
-with the masks from a 256-byte table. Sprites live in world coordinates.
+with the masks and pixels from two 256-byte tables (opaque black is stored
+there as pen 1, the sky, which sprites never use, and drawn as pen 0). Sprites live in world coordinates.
 
 Each screen buffer keeps the sprites it shows and their cell layout (which
 map columns and character rows they cover). Before the buffer is drawn
@@ -417,7 +422,7 @@ palette, plus the foreground overlays from a second mask image;
 | `src/title.asm` | Title screen, high-score table, initials entry |
 | `src/text.asm` | HUD text: font, centred lines, numbers |
 | `src/sound.asm` | AY music and sound effect driver |
-| `src/logo.asm` | Draws the title logo from extra RAM |
+| `src/logo.asm` | Draws the title logo |
 | `src/hud.asm` | HUD setup and radar marker |
 | `src/macros.asm` | Shared macros |
 | `src/hw.asm` | Hardware ports and constants |
@@ -428,10 +433,10 @@ palette, plus the foreground overlays from a second mask image;
 | `tools/gen_logo.py` | Generates the title logo |
 | `tools/gen_music.py` | The music and sound effects, as data for `src/sound.asm` |
 | `tools/font.py` | The 3x5 font, for the HUD art, the game and the tests |
-| `tools/pack_bank.py` | Packs files into an extra RAM bank image (the last sprites and the logo in bank 6) |
+| `tools/pack_bank.py` | Packs files into an extra RAM bank image (the last sprites, in bank 6) |
 | `tools/mkplanet.py` | Packs a planet (art and description) into a bank image |
 | `assets/planets/` | The planets' descriptions |
-| `tools/gen_tables.py` | Sprite mask table |
+| `tools/gen_tables.py` | Sprite mask and pixel tables |
 | `tools/spritec.py` | Sprite compiler: code and data for the extra RAM banks |
 | `tools/mkdisc.py` | Builds the disc: BASIC loader, extra RAM banks, game, planets |
 | `tools/png2tiles.py` | PNG to Mode 0 tiles, map, palette and foreground overlays |
@@ -458,11 +463,11 @@ palette, plus the foreground overlays from a second mask image;
 |-------|-----|
 | `&0038` | Interrupt handler vector |
 | `&0040-&01FF` | Stack |
-| `&0200-&3FFF` | Code, tables, sound driver and music, disc loader, the current planet's header (about 12K used, up to `&322C`) |
+| `&0200-&3FFF` | Code, tables, sound driver and music, disc loader, the current planet's header, the title logo (about 15K used, up to `&3D2C`) |
 | `&4000-&7FFF` | HUD screen page (640 bytes of each 2K line block). The rest of the blocks holds code and data that never page a bank and that the interrupt does not use: block 0 the packed HUD and the text code, block 1 game.asm, block 2 title.asm; blocks 3-7 are free |
 | `&8000-&BFFF` | Playfield buffer 2 (and, with buffer 1, where a planet file is read before it goes into bank 7) |
 | `&C000-&FFFF` | Playfield buffer 1 |
-| Extra RAM 4-6 | Sprites: compiled routines and raw pixels (41K, 45 frames); at `&2800` in bank 6, the title logo (2.3K) |
+| Extra RAM 4-6 | Sprites: compiled routines and raw pixels (45K, 45 frames) |
 | Extra RAM 7 | The current planet, loaded from disc: map, header, tiles, foreground (9.7K to 11K) |
 
 The CRTC always reads base RAM, so the HUD stays on screen when one of the

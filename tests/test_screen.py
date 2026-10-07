@@ -114,7 +114,7 @@ class Expected:
                 for dx, pen in enumerate(row):
                     x = sx + dx
                     if pen and 0 <= x < VIEW_W:
-                        pens[wy + dy][x] = pen
+                        pens[wy + dy][x] = pen & 15     # 16: opaque black
         for y in range(PLAY_H):
             fg = self.fg[y]
             for x in range(VIEW_W):

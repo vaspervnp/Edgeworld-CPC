@@ -5,7 +5,8 @@ Each frame (listed in the JSON, in order) gets, for each of its two pixel
 alignments (as drawn, W bytes per line; shifted one pixel right, W + 1):
 
 - raw pixel data, line after line, for the engine's generic masked drawing
-  (used when the sprite is clipped at the view's edge);
+  (used when the sprite is clipped at the view's edge), opaque black as
+  pen 1 (which sprites never use otherwise: it is the sky);
 - a compiled drawing routine: straight-line Z80 that writes each byte of the
   sprite at HL. Fully opaque bytes are a single LD (HL),n, bytes with pen 0
   pixels are masked with immediates (LD A,(HL) : AND m : OR p : LD (HL),A),
@@ -28,6 +29,9 @@ frame table spr_frames, FRAME_SIZE bytes per frame: W, height, raw data
 unshifted and shifted, routines unshifted and shifted, RAM configuration,
 spare).
 
+Sheet pens 0-15 are the playfield's, pen 0 transparent; pen OPAQUE_BLACK
+(16) is black drawn opaque, for outlines and dark shading.
+
 Usage: spritec.py sheet.png frames.json out_prefix
 """
 import json
@@ -40,6 +44,8 @@ BANK_BASE = 0x4000
 BANK_SIZE = 0x4000
 FIRST_CONFIG = 0xC4         # banks 4-7
 MAX_BANKS = 4
+OPAQUE_BLACK = 16
+RAW_BLACK = 1               # opaque black in raw data (gen_tables.py)
 
 # row_cross: H holds page + #40 | ring block (the line bits wrapped past 7).
 # Back to line 0 and on 80 bytes, carrying into the ring block, wrapping it.
@@ -61,14 +67,18 @@ ROW_CROSS = bytes([
 ])
 
 
-def masked_bytes(rows):
-    """Rows of pens -> rows of (pixel byte, mask byte)."""
+def masked_bytes(rows, black=0):
+    """Rows of pens -> rows of (pixel byte, mask byte), opaque black as
+    pen black."""
     out = []
     for row in rows:
         line = []
         for x in range(0, len(row), 2):
             a, b = row[x], row[x + 1]
+            if a == 1 or b == 1:
+                raise SystemExit("pen 1 (the sky) in a sprite")
             mask = (0xAA if a == 0 else 0) | (0x55 if b == 0 else 0)
+            a, b = (black if p == OPAQUE_BLACK else p for p in (a, b))
             line.append((mode0_byte(a, b), mask))
         out.append(line)
     return out
@@ -116,11 +126,13 @@ def main():
         if w % 2:
             raise SystemExit(f"{f['name']}: width {w} is odd")
         rows = [[px[f["x"] + x, f["y"] + y] for x in range(w)] for y in range(h)]
-        versions = [masked_bytes(rows), masked_bytes([[0] + r + [0] for r in rows])]
+        shifted = [[0] + r + [0] for r in rows]
+        versions = [masked_bytes(rows), masked_bytes(shifted)]
+        raws = [masked_bytes(rows, RAW_BLACK), masked_bytes(shifted, RAW_BLACK)]
         # place raw data first, then code (which needs its own address only
         # for row_cross, at the bank start)
         blob, raw_offsets, code_offsets = bytearray(), [], []
-        for v in versions:
+        for v in raws:
             raw_offsets.append(len(blob))
             for line in v:
                 blob += bytes(p for p, m in line)

@@ -49,6 +49,7 @@ def clear_planet(f):
         if g.byte("GAME_OVER"):
             break
     assert g.byte("GAME_OVER") == GAME_OVER_CLEAR
+    f.frames(2)                 # the bonus is added in the same game frame
 
 
 def wait_planet(g, n, frames=1500):
@@ -79,7 +80,8 @@ def test():
     check_loaded(g, 2)
     header = planet_file(2)[HEADER:HEADER + HEADER_SIZE]
     assert g.word("TIME_SECS") in (header[0] | header[1] << 8, (header[0] | header[1] << 8) - 1)
-    assert (g.word("SCORE"), g.byte("PL_SPARES"), g.byte("PL_ENERGY")) == (score, spares, 100)
+    got = (g.word("SCORE"), g.byte("PL_SPARES"), g.byte("PL_ENERGY"))
+    assert got == (score, spares, 100), (got, score, spares)
     assert g.bytes("PF_PALETTE", 16) != planet_file(1)[HEADER + 33:HEADER + 49]
     # every frame of the new planet, in its own palette and sky
     screen = Screen(g)

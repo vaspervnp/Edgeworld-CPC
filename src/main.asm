@@ -1,4 +1,4 @@
-; Shieldrunner for the Amstrad CPC 6128, version 1.0.
+; Shieldrunner for the Amstrad CPC 6128, version 1.1.
 ; Ride the Runner round four planets, shooting what comes and recharging
 ; the shield generators until the time runs out. See README.md for how it
 ; plays and how it works; this file has the start-up and the main loop.
@@ -92,11 +92,15 @@ main_loop:
     align 256
 mask_table:
     incbin "../build/tables.mask"
+pixel_table:                ; must follow mask_table (see sprites.asm)
+    incbin "../build/tables.pixels"
 col_fg:                     ; the planet's, per map column (see planet.asm)
     ds 256
     include "../build/sprites.frames"
 hud_palette:
     incbin "../build/hud.pal"
+logo_data:
+    incbin "../build/logo.bin"
 end_of_code:
     assert end_of_code <= #4000
 

@@ -1,5 +1,5 @@
 PYTHON ?= python3
-VERSION := 1.0
+VERSION := 1.1
 export VERSION
 RASM   ?= rasm
 IDSK   ?= iDSK
@@ -31,9 +31,9 @@ $(BUILD)/planet%.inc: assets/planet%.png assets/planet%_fg.png tools/png2tiles.p
 $(BUILD)/planet%.bin: assets/planets/planet%.json $(BUILD)/planet%.inc tools/mkplanet.py tools/pens.py tools/cpcpal.py
 	$(PYTHON) tools/mkplanet.py $< $(BUILD)/planet$* $@
 
-# Extra bank 6: the last sprites, and the title logo at #2800 (src/logo.asm).
-$(BUILD)/bank6.bin: $(BUILD)/sprites.inc $(BUILD)/logo.bin tools/pack_bank.py
-	$(PYTHON) tools/pack_bank.py $@ $(BUILD)/sprites.bank6.bin@0 $(BUILD)/logo.bin@2800
+# Extra bank 6: the last sprites.
+$(BUILD)/bank6.bin: $(BUILD)/sprites.inc tools/pack_bank.py
+	$(PYTHON) tools/pack_bank.py $@ $(BUILD)/sprites.bank6.bin@0
 
 assets/logo.png $(BUILD)/logo.bin &: tools/gen_logo.py tools/pens.py tools/font.py tools/cpcpal.py | $(BUILD)
 	$(PYTHON) tools/gen_logo.py assets/logo.png $(BUILD)/logo.bin
@@ -51,7 +51,7 @@ $(BUILD)/sprites.inc: assets/sprites.png assets/sprites.json tools/spritec.py to
 	rm -f $(BUILD)/sprites.bank*.bin
 	$(PYTHON) tools/spritec.py assets/sprites.png assets/sprites.json $(BUILD)/sprites
 
-$(BUILD)/tables.mask: tools/gen_tables.py | $(BUILD)
+$(BUILD)/tables.mask $(BUILD)/tables.pixels &: tools/gen_tables.py | $(BUILD)
 	$(PYTHON) tools/gen_tables.py $(BUILD)/tables
 
 assets/hud.png: tools/gen_hud.py tools/font.py tools/cpcpal.py
@@ -61,7 +61,7 @@ $(BUILD)/hud.rle: assets/hud.png tools/png2scr.py tools/cpcpal.py | $(BUILD)
 	$(PYTHON) tools/png2scr.py $< $(BUILD)/hud
 
 $(BUILD)/shield.bin: $(SRC) $(BUILD)/hud.rle $(BUILD)/sprites.inc $(BUILD)/tables.mask \
-		$(BUILD)/font.bin $(BUILD)/sound.inc
+		$(BUILD)/tables.pixels $(BUILD)/logo.bin $(BUILD)/font.bin $(BUILD)/sound.inc
 	$(RASM) src/main.asm -ob $(BUILD)/shield.bin -s -sa -os $(BUILD)/shield.sym
 
 # The disc: a BASIC loader (SHIELD.BAS) that loads the sprite banks into

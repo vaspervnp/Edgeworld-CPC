@@ -8,8 +8,9 @@
 ; drawn with whole bytes, both as raw pixels and as a compiled routine (see
 ; tools/spritec.py), in one of the 6128's extra RAM banks, paged in at
 ; #4000 while sprites are drawn. Pen 0 is transparent: the generic loop
-; takes the AND mask of a sprite byte from mask_table; compiled routines
-; carry their masks as immediates.
+; takes the AND mask of a sprite byte from mask_table and its pixels from
+; pixel_table (where pen 1 marks opaque black: outlines); compiled routines
+; carry their masks and pixels as immediates.
 ;
 ; Each screen buffer keeps the list of records it shows. Before the back
 ; buffer is drawn again, the cells under its old records are restored from
@@ -28,7 +29,7 @@ REC_SIZE    equ 4
 VIEW_BYTES  equ SCREEN_WORDS*2
 COPY_LINE   equ 12          ; bytes of code per line in copy_unroll
 OVL_LINE    equ 18          ; bytes of code per line in ovl_unroll
-SEG_BYTE    equ 8           ; bytes of code per byte in seg_unroll
+SEG_BYTE    equ 12          ; bytes of code per byte in seg_unroll
 LAYOUT_SIZE equ 8           ; bytes of a sprite layout (see layout:)
 
 ; Draw the frame's sprites into the back buffer: restore what it showed,
@@ -766,6 +767,7 @@ dl_setup:
     ld (dl_skip_jr+1),a
     ld a,c
     add a,a
+    add a,c
     add a,a
     add a,a                 ; * SEG_BYTE
     ld c,a
@@ -790,8 +792,12 @@ seg_unroll:
     ld c,a
     ld a,(bc)               ; mask for this sprite byte
     and (hl)
-    or c
     ld (hl),a
+    inc b
+    ld a,(bc)               ; its pixels
+    or (hl)
+    ld (hl),a
+    dec b
     inc de
     inc l
     rend
@@ -814,7 +820,7 @@ dl_step:
     add 8
     ld h,a
     dec iyl
-    jr nz,dl_line
+    jp nz,dl_line
     ret
 
     assert seg_end-seg_unroll == SPR_MAX_W*SEG_BYTE
